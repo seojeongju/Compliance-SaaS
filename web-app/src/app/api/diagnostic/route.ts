@@ -30,6 +30,10 @@ const DiagnosticResultSchema = z.object({
 });
 
 export async function POST(req: Request) {
+    const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+    });
+
     try {
         const body = await req.json();
         const { productName, category, description } = body;

@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle, CheckCircle, ChevronRight, FileText, Loader2, Search, Zap } from "lucide-react";
+import { AlertCircle, CheckCircle, ChevronRight, FileText, Loader2, Search, Zap, Download } from "lucide-react";
 import { motion } from "framer-motion";
 
-// Define the type for the API response
+// Define the type for different states
+type Step = "input" | "analyzing" | "result" | "generating_doc" | "doc_result";
+
 interface Certification {
     name: string;
     type: "legal" | "safety" | "hygiene" | "other";
@@ -15,6 +17,7 @@ interface Certification {
 interface RequiredDocument {
     name: string;
     description: string;
+    type: string; // The type keyword for generation
 }
 
 interface DiagnosticResult {
@@ -26,8 +29,13 @@ interface DiagnosticResult {
     required_documents: RequiredDocument[];
 }
 
+interface GeneratedDoc {
+    title: string;
+    content: string; // Markdown
+}
+
 export default function DiagnosticPage() {
-    const [step, setStep] = useState<"input" | "analyzing" | "result">("input");
+    const [step, setStep] = useState<Step>("input");
     const [formData, setFormData] = useState({
         productName: "",
         category: "electronics",
@@ -35,6 +43,8 @@ export default function DiagnosticPage() {
     });
     const [result, setResult] = useState<DiagnosticResult | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [generatedDoc, setGeneratedDoc] = useState<GeneratedDoc | null>(null);
+    const [generatingDocName, setGeneratingDocName] = useState<string>("");
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -62,8 +72,42 @@ export default function DiagnosticPage() {
         }
     };
 
+    const generateDocument = async (docType: string, docName: string) => {
+        setGeneratingDocName(docName);
+        setStep("generating_doc");
+        setError(null);
+
+        try {
+            const response = await fetch("/api/generate-document", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    productName: formData.productName,
+                    category: formData.category,
+                    description: formData.description,
+                    documentType: docType,
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Failed to generate document");
+            }
+
+            const docData: GeneratedDoc = await response.json();
+            setGeneratedDoc(docData);
+            setStep("doc_result");
+        } catch (err: unknown) {
+            console.error(err);
+            setError("문서 생성 중 오류가 발생했습니다.");
+            setStep("result"); // Go back to result view
+        } finally {
+            setGeneratingDocName("");
+        }
+    };
+
     return (
-        <div className="mx-auto max-w-4xl space-y-8">
+        <div className="mx-auto max-w-4xl space-y-8 pb-20">
             <div>
                 <h1 className="text-3xl font-bold text-zinc-900">AI 규제 진단</h1>
                 <p className="mt-2 text-zinc-600">
@@ -152,6 +196,48 @@ export default function DiagnosticPage() {
                 </div>
             )}
 
+            {step === "generating_doc" && (
+                <div className="flex flex-col items-center justify-center py-20 text-center">
+                    <Loader2 className="h-12 w-12 animate-spin text-indigo-600" />
+                    <h2 className="mt-6 text-2xl font-bold">AI가 문서를 작성하고 있습니다...</h2>
+                    <p className="mt-2 text-zinc-600">
+                        &quot;{generatingDocName}&quot; 초안을 생성 중입니다.<br />
+                        약 10~20초 정도 소요될 수 있습니다.
+                    </p>
+                </div>
+            )}
+
+            {step === "doc_result" && generatedDoc && (
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="space-y-6"
+                >
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-2xl font-bold text-zinc-900">📄 문서 초안 생성 완료</h2>
+                        <button
+                            onClick={() => setStep("result")}
+                            className="text-sm text-zinc-500 hover:text-zinc-900 hover:underline"
+                        >
+                            목록으로 돌아가기
+                        </button>
+                    </div>
+
+                    <div className="rounded-xl border bg-white p-8 shadow-sm">
+                        <div className="mb-6 flex items-center justify-between border-b pb-4">
+                            <h3 className="text-xl font-bold text-zinc-800">{generatedDoc.title}</h3>
+                            <button className="flex items-center gap-2 rounded-md bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-200">
+                                <Download className="h-4 w-4" />
+                                다운로드 (Word)
+                            </button>
+                        </div>
+                        <div className="prose max-w-none whitespace-pre-wrap text-zinc-700">
+                            {generatedDoc.content}
+                        </div>
+                    </div>
+                </motion.div>
+            )}
+
             {step === "result" && result && (
                 <motion.div
                     initial={{ opacity: 0 }}
@@ -236,8 +322,13 @@ export default function DiagnosticPage() {
                                                 <span className="text-xs text-zinc-500">{doc.description}</span>
                                             </div>
                                         </div>
-                                        {/* Placeholder action button */}
-                                        <button className="text-sm font-medium text-blue-600 hover:underline">준비하기</button>
+                                        {/* Check if AI can generate this doc type. For now, assume all can be drafted. */}
+                                        <button
+                                            onClick={() => generateDocument(doc.name, doc.name)}
+                                            className="flex items-center gap-1 rounded bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-600 hover:bg-indigo-100 transition-colors"
+                                        >
+                                            AI 자동작성 <ChevronRight className="h-3 w-3" />
+                                        </button>
                                     </div>
                                 ))}
                             </div>
