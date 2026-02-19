@@ -1,10 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Bot, CheckCircle, FileText, ShieldCheck, Zap, Globe, Lock } from "lucide-react";
+import { ArrowRight, Bot, CheckCircle, FileText, ShieldCheck, Zap, Globe, Lock, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { createSupabaseClient } from "../lib/supabaseClient";
 
 export default function Home() {
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    checkUser();
+  }, []);
+
+  const checkUser = async () => {
+    try {
+      const supabase = createSupabaseClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    } catch (error) {
+      console.error("Error checking user:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fadeInUp = {
     initial: { opacity: 0, y: 20 },
     animate: { opacity: 1, y: 0 },
@@ -28,15 +49,28 @@ export default function Home() {
             <Link href="#pricing" className="hover:text-blue-600 transition-colors">요금제</Link>
           </nav>
           <div className="flex items-center gap-4">
-            <Link href="/login" className="hidden text-sm font-medium text-zinc-600 hover:text-zinc-900 md:block">
-              로그인
-            </Link>
-            <Link
-              href="/dashboard/diagnostic"
-              className="rounded-full bg-zinc-900 px-5 py-2 text-sm font-medium text-white shadow-lg hover:bg-zinc-800 hover:scale-105 transition-all"
-            >
-              무료 진단하기
-            </Link>
+            {loading ? (
+              <Loader2 className="h-5 w-5 animate-spin text-zinc-400" />
+            ) : user ? (
+              <Link
+                href="/dashboard"
+                className="rounded-full bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow-lg hover:bg-blue-700 transition"
+              >
+                대시보드로 이동
+              </Link>
+            ) : (
+              <>
+                <Link href="/login" className="hidden text-sm font-medium text-zinc-600 hover:text-zinc-900 md:block">
+                  로그인
+                </Link>
+                <Link
+                  href="/dashboard/diagnostic"
+                  className="rounded-full bg-zinc-900 px-5 py-2 text-sm font-medium text-white shadow-lg hover:bg-zinc-800 hover:scale-105 transition-all"
+                >
+                  무료 진단하기
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -74,14 +108,24 @@ export default function Home() {
               </p>
 
               <div className="flex flex-col items-center justify-center gap-4 sm:flex-row pt-4">
-                <Link
-                  href="/dashboard/diagnostic"
-                  className="flex h-14 w-full items-center justify-center rounded-xl bg-blue-600 px-8 text-lg font-semibold text-white shadow-xl shadow-blue-200 transition hover:bg-blue-700 hover:-translate-y-1 sm:w-auto"
-                >
-                  지금 즉시 진단받기 <ArrowRight className="ml-2 h-5 w-5" />
-                </Link>
+                {user ? (
+                  <Link
+                    href="/dashboard"
+                    className="flex h-14 w-full items-center justify-center rounded-xl bg-blue-600 px-8 text-lg font-semibold text-white shadow-xl shadow-blue-200 transition hover:bg-blue-700 hover:-translate-y-1 sm:w-auto"
+                  >
+                    대시보드 바로가기 <ArrowRight className="ml-2 h-5 w-5" />
+                  </Link>
+                ) : (
+                  <Link
+                    href="/dashboard/diagnostic"
+                    className="flex h-14 w-full items-center justify-center rounded-xl bg-blue-600 px-8 text-lg font-semibold text-white shadow-xl shadow-blue-200 transition hover:bg-blue-700 hover:-translate-y-1 sm:w-auto"
+                  >
+                    지금 즉시 진단받기 <ArrowRight className="ml-2 h-5 w-5" />
+                  </Link>
+                )}
+
                 <div className="flex flex-col gap-1 text-xs text-zinc-400 sm:text-left">
-                  <span className="flex items-center gap-1"><CheckCircle className="h-3 w-3" /> 별도 회원가입 없음</span>
+                  <span className="flex items-center gap-1"><CheckCircle className="h-3 w-3" /> 별도 회원가입 없음 (체험)</span>
                   <span className="flex items-center gap-1"><CheckCircle className="h-3 w-3" /> 100% 무료</span>
                 </div>
               </div>
@@ -207,18 +251,21 @@ export default function Home() {
               안전하고 빠르게 제품을 출시하고 있습니다.
             </p>
             <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
-              <Link
-                href="/dashboard/diagnostic"
-                className="rounded-full bg-white px-8 py-4 text-lg font-bold text-zinc-900 hover:bg-zinc-100 hover:scale-105 transition-all"
-              >
-                지금 무료로 시작하기
-              </Link>
-              <Link
-                href="#contact"
-                className="rounded-full border border-zinc-700 px-8 py-4 text-lg font-medium text-white hover:bg-zinc-800 transition-all"
-              >
-                도입 문의하기
-              </Link>
+              {user ? (
+                <Link
+                  href="/dashboard"
+                  className="rounded-full bg-white px-8 py-4 text-lg font-bold text-zinc-900 hover:bg-zinc-100 hover:scale-105 transition-all"
+                >
+                  대시보드로 돌아가기
+                </Link>
+              ) : (
+                <Link
+                  href="/dashboard/diagnostic"
+                  className="rounded-full bg-white px-8 py-4 text-lg font-bold text-zinc-900 hover:bg-zinc-100 hover:scale-105 transition-all"
+                >
+                  지금 무료로 시작하기
+                </Link>
+              )}
             </div>
           </div>
         </section>
