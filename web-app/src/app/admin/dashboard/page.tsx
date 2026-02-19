@@ -54,7 +54,7 @@ export default function AdminDashboard() {
             }
 
             // Check if user is admin
-            const { data: profile, error } = await supabase
+            const { data: profile } = await (supabase as any)
                 .from("profiles")
                 .select("role")
                 .eq("id", user.id)
@@ -98,7 +98,7 @@ export default function AdminDashboard() {
             if (usersError) throw usersError;
 
             // 2. Fetch Diagnostics Logs
-            const { data: logsData, error: logsError } = await supabase
+            const { data: logsData, error: logsError } = await (supabase as any)
                 .from("diagnostic_results")
                 .select("id, product_name, created_at, user_id")
                 .order("created_at", { ascending: false })
@@ -141,7 +141,7 @@ export default function AdminDashboard() {
 
         try {
             const supabase = createSupabaseClient();
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from("profiles")
                 .update({ tier: newTier })
                 .eq("id", userId);
@@ -170,7 +170,7 @@ export default function AdminDashboard() {
 
         try {
             const supabase = createSupabaseClient();
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from("profiles")
                 .update({ role: newRole })
                 .eq("id", userId);
@@ -340,8 +340,8 @@ export default function AdminDashboard() {
                                                         <button
                                                             onClick={() => updateUserRole(user.id, user.role)}
                                                             className={`ml-3 text-xs font-medium hover:underline ${user.role === 'admin'
-                                                                    ? 'text-red-600 hover:text-red-800'
-                                                                    : 'text-zinc-500 hover:text-zinc-800'
+                                                                ? 'text-red-600 hover:text-red-800'
+                                                                : 'text-zinc-500 hover:text-zinc-800'
                                                                 }`}
                                                         >
                                                             {user.role === 'admin' ? 'Revoke Admin' : 'Make Admin'}

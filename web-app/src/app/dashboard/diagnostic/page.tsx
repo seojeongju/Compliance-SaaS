@@ -124,7 +124,7 @@ export default function DiagnosticPage() {
             const { data: { user } } = await supabase.auth.getUser();
 
             if (user) {
-                const { data } = await supabase
+                const { data } = await (supabase as any)
                     .from('profiles')
                     .select('tier, role')
                     .eq('id', user.id)
@@ -146,7 +146,7 @@ export default function DiagnosticPage() {
             const { data: { user } } = await supabase.auth.getUser();
 
             if (user) {
-                const { data } = await supabase
+                const { data } = await (supabase as any)
                     .from('diagnostic_results')
                     .select('*')
                     .eq('user_id', user.id)
@@ -178,7 +178,7 @@ export default function DiagnosticPage() {
 
         try {
             const supabase = createSupabaseClient();
-            const { error } = await supabase.from('diagnostic_results').delete().eq('id', id);
+            const { error } = await (supabase as any).from('diagnostic_results').delete().eq('id', id);
             if (error) throw error;
             setHistory(prev => prev.filter(item => item.id !== id));
         } catch (err) {
@@ -319,7 +319,7 @@ export default function DiagnosticPage() {
                 return;
             }
 
-            const { error } = await supabase.from('diagnostic_results').insert({
+            const { error } = await (supabase as any).from('diagnostic_results').insert({
                 user_id: user.id,
                 product_name: formData.productName,
                 description: formData.description,
