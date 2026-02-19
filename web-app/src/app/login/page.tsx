@@ -1,90 +1,145 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Loader2, ShieldCheck } from "lucide-react";
+import { createSupabaseClient } from "../../lib/supabaseClient";
+import { useRouter } from "next/navigation";
+import { Lock, Mail, Loader2, AlertCircle } from "lucide-react";
+import Link from "next/link";
 
 export default function LoginPage() {
+    const [loading, setLoading] = useState(false);
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [mode, setMode] = useState<"signin" | "signup">("signin");
+    const [error, setError] = useState<string | null>(null);
+    const [message, setMessage] = useState<string | null>(null);
     const router = useRouter();
-    const [isLoading, setIsLoading] = useState(false);
 
-    const handleLogin = (e: React.FormEvent) => {
+    const handleAuth = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsLoading(true);
-        // Simulate login delay
-        setTimeout(() => {
-            router.push("/dashboard");
-        }, 1500);
+        setLoading(true);
+        setError(null);
+        setMessage(null);
+
+        const supabase = createSupabaseClient();
+
+        try {
+            if (mode === "signup") {
+                const { error } = await supabase.auth.signUp({
+                    email,
+                    password,
+                });
+                if (error) throw error;
+                setMessage("가입 확인 이메일이 발송되었습니다. 이메일을 확인해주세요.");
+            } else {
+                const { error } = await supabase.auth.signInWithPassword({
+                    email,
+                    password,
+                });
+                if (error) throw error;
+                router.push("/dashboard");
+            }
+        } catch (error: any) {
+            console.error("Auth Error:", error);
+            setError(error.message || "오류가 발생했습니다.");
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
-        <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 px-4 py-12 sm:px-6 lg:px-8">
-            <div className="w-full max-w-md space-y-8">
-                <div className="flex flex-col items-center">
-                    <Link href="/" className="flex items-center gap-2 text-2xl font-bold text-blue-600">
-                        <ShieldCheck className="h-8 w-8" />
-                        <span>Certi-Mate</span>
-                    </Link>
-                    <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-zinc-900">
-                        로그인
+        <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-12 sm:px-6 lg:px-8">
+            <div className="w-full max-w-md space-y-8 rounded-2xl bg-white p-8 shadow-lg">
+                <div className="text-center">
+                    <h2 className="mt-6 text-3xl font-extrabold text-zinc-900">
+                        {mode === "signin" ? "로그인" : "회원가입"}
                     </h2>
-                    <p className="mt-2 text-center text-sm text-zinc-600">
-                        또는{" "}
-                        <Link href="#" className="font-medium text-blue-600 hover:text-blue-500">
-                            무료 회원가입
-                        </Link>
+                    <p className="mt-2 text-sm text-zinc-600">
+                        {mode === "signin"
+                            ? "서비스 이용을 위해 로그인해주세요."
+                            : "계정을 생성하여 서비스를 시작하세요."}
                     </p>
                 </div>
-                <form className="mt-8 space-y-6" onSubmit={handleLogin}>
-                    <div className="-space-y-px rounded-md shadow-sm">
-                        <div>
+
+                <form className="mt-8 space-y-6" onSubmit={handleAuth}>
+                    <div className="space-y-4 rounded-md shadow-sm">
+                        <div className="relative">
                             <label htmlFor="email-address" className="sr-only">
-                                이메일 주소
+                                Email address
                             </label>
+                            <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" />
                             <input
                                 id="email-address"
                                 name="email"
                                 type="email"
                                 autoComplete="email"
                                 required
-                                className="relative block w-full rounded-t-md border-0 py-1.5 text-zinc-900 ring-1 ring-inset ring-zinc-300 placeholder:text-zinc-400 focus:z-10 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6 px-3"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="block w-full rounded-lg border border-zinc-300 pl-10 px-3 py-3 text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm transition-all"
                                 placeholder="이메일 주소"
                             />
                         </div>
-                        <div>
+                        <div className="relative">
                             <label htmlFor="password" className="sr-only">
-                                비밀번호
+                                Password
                             </label>
+                            <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" />
                             <input
                                 id="password"
                                 name="password"
                                 type="password"
                                 autoComplete="current-password"
                                 required
-                                className="relative block w-full rounded-b-md border-0 py-1.5 text-zinc-900 ring-1 ring-inset ring-zinc-300 placeholder:text-zinc-400 focus:z-10 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6 px-3"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="block w-full rounded-lg border border-zinc-300 pl-10 px-3 py-3 text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm transition-all"
                                 placeholder="비밀번호"
                             />
                         </div>
                     </div>
 
-                    <div>
+                    {error && (
+                        <div className="flex items-center gap-2 rounded-md bg-red-50 p-3 text-sm text-red-600">
+                            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                            <span>{error}</span>
+                        </div>
+                    )}
+
+                    {message && (
+                        <div className="flex items-center gap-2 rounded-md bg-green-50 p-3 text-sm text-green-600">
+                            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                            <span>{message}</span>
+                        </div>
+                    )}
+
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="group relative flex w-full justify-center rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-70 transition-all"
+                    >
+                        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {mode === "signin" ? "로그인하기" : "가입하기"}
+                    </button>
+
+                    <div className="flex justify-center mt-4">
                         <button
-                            type="submit"
-                            disabled={isLoading}
-                            className="group relative flex w-full justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-70"
+                            type="button"
+                            onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+                            className="text-sm font-medium text-blue-600 hover:text-blue-500 hover:underline transition-colors"
                         >
-                            <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-                                {isLoading ? (
-                                    <Loader2 className="h-5 w-5 animate-spin text-blue-300" />
-                                ) : (
-                                    <ShieldCheck className="h-5 w-5 text-blue-500 group-hover:text-blue-400" />
-                                )}
-                            </span>
-                            {isLoading ? "로그인 중..." : "로그인"}
+                            {mode === "signin"
+                                ? "계정이 없으신가요? 회원가입"
+                                : "이미 계정이 있으신가요? 로그인"}
                         </button>
                     </div>
                 </form>
+
+                <div className="text-center mt-6">
+                    <Link href="/" className="text-xs text-zinc-400 hover:text-zinc-600">
+                        메인으로 돌아가기
+                    </Link>
+                </div>
             </div>
         </div>
     );
