@@ -233,55 +233,100 @@ export default function DiagnosticPage() {
         }
     };
 
-    const downloadLabelPDF = () => {
+    const downloadLabelPDF = async () => {
         if (!labelResult) return;
 
         const doc = new jsPDF();
 
-        // Add font support for Korean would be needed here in production.
-        // For now, we will use standard font and warn about encoding if needed, 
-        // OR ideally load a Korean font. 
-        // *Limitation*: jsPDF default fonts don't support Korean. 
-        // We will try to display English or basic content, but for real Korean support 
-        // we need to add a font file (e.g., NotoSansKR.ttf).
-        // Since I cannot upload a font file easily here, I will structure the PDF 
-        // but note that Korean characters might appear as broken without a custom font.
-        // To fix this in a real project: doc.addFont('path/to/font.ttf', 'MyFont', 'normal');
+        try {
+            // Fetch Korean Font (NanumGothic) from Google Fonts
+            const fontUrl = "https://raw.githubusercontent.com/google/fonts/main/ofl/nanumgothic/NanumGothic-Regular.ttf";
+            const response = await fetch(fontUrl);
+            if (!response.ok) throw new Error("Failed to load Korean font");
 
-        doc.setFontSize(18);
-        doc.text("Product Label Draft", 105, 20, { align: "center" });
+            const fontBuffer = await response.arrayBuffer();
+            const fontUint8 = new Uint8Array(fontBuffer);
 
-        doc.setFontSize(12);
+            // Convert Uint8Array to binary string for jsPDF
+            let fontBinary = "";
+            for (let i = 0; i < fontUint8.length; i++) {
+                fontBinary += String.fromCharCode(fontUint8[i]);
+            }
 
-        const tableData = [
-            ["Product Name", labelResult.product_name],
-            ["Model / Type", labelResult.model_name],
-            ["Capacity / Weight", labelResult.capacity],
-            ["Manufacturer", labelResult.manufacturer],
-            ["Country of Origin", labelResult.country_of_origin],
-            ["Mfg Date Guide", labelResult.manufacturing_date],
-        ];
+            // Add font to VFS and register
+            doc.addFileToVFS("NanumGothic.ttf", fontBinary);
+            doc.addFont("NanumGothic.ttf", "NanumGothic", "normal");
+            doc.setFont("NanumGothic");
 
-        autoTable(doc, {
-            startY: 30,
-            head: [['Item', 'Content']],
-            body: tableData,
-            theme: 'grid',
-            headStyles: { fillColor: [79, 70, 229] }, // Indigo-600
-        });
+            doc.setFontSize(18);
+            doc.text("제품 표시사항 (Label Draft)", 105, 20, { align: "center" });
 
-        const finalY = (doc as any).lastAutoTable.finalY + 10;
+            doc.setFontSize(10);
+            doc.text(`Generated: ${new Date().toLocaleDateString()}`, 105, 28, { align: "center" });
 
-        doc.setFontSize(11);
-        doc.text("Precautions:", 14, finalY);
-        const splitPrecautions = doc.splitTextToSize(labelResult.precautions, 180);
-        doc.text(splitPrecautions, 14, finalY + 7);
+            const tableData = [
+                ["품명 (Product Name)", labelResult.product_name],
+                ["모델명 (Model)", labelResult.model_name],
+                ["용량/중량 (Capacity)", labelResult.capacity],
+                ["제조자/수입자 (Manufacturer)", labelResult.manufacturer],
+                ["제조국 (Origin)", labelResult.country_of_origin],
+                ["제조연월 (Mfg Date)", labelResult.manufacturing_date],
+            ];
 
-        doc.text("KC Mark Guide:", 14, finalY + 30);
-        const splitKC = doc.splitTextToSize(labelResult.kc_mark_guideline, 180);
-        doc.text(splitKC, 14, finalY + 37);
+            autoTable(doc, {
+                startY: 35,
+                head: [['항목 (Item)', '내용 (Content)']],
+                body: tableData,
+                theme: 'grid',
+                headStyles: {
+                    fillColor: [79, 70, 229], // Indigo-600
+                    font: "NanumGothic",
+                    fontStyle: "normal"
+                },
+                bodyStyles: {
+                    font: "NanumGothic",
+                    fontStyle: "normal"
+                },
+                styles: {
+                    font: "NanumGothic", // Global font fallback for table
+                    fontStyle: "normal"
+                }
+            });
 
-        doc.save(`${labelResult.product_name}_label_draft.pdf`);
+            const finalY = (doc as any).lastAutoTable.finalY + 10;
+
+            doc.setFontSize(12);
+            doc.setFont("NanumGothic", "normal");
+
+            doc.text("사용상 주의사항 (Precautions):", 14, finalY);
+            doc.setFontSize(10);
+            const splitPrecautions = doc.splitTextToSize(labelResult.precautions, 180);
+            doc.text(splitPrecautions, 14, finalY + 7);
+
+            const nextY = finalY + 10 + (splitPrecautions.length * 5);
+
+            doc.setFontSize(12);
+            doc.text("KC 마크 표기 가이드 (KC Mark Guide):", 14, nextY);
+            doc.setFontSize(10);
+            const splitKC = doc.splitTextToSize(labelResult.kc_mark_guideline, 180);
+            doc.text(splitKC, 14, nextY + 7);
+
+            if (labelResult.additional_info) {
+                const afterKCY = nextY + 10 + (splitKC.length * 5);
+                doc.setFontSize(12);
+                doc.text("기타 표기 (Additional Info):", 14, afterKCY);
+                doc.setFontSize(10);
+                const splitAdd = doc.splitTextToSize(labelResult.additional_info, 180);
+                doc.text(splitAdd, 14, afterKCY + 7);
+            }
+
+            doc.save(`${labelResult.product_name}_label_draft.pdf`);
+
+        } catch (err) {
+            console.error("Font loading error:", err);
+            alert("한글 폰트 로딩에 실패하여 기본 폰트로 다운로드됩니다. (글자가 깨질 수 있습니다)");
+            doc.save(`${labelResult.product_name}_label_draft_no_font.pdf`);
+        }
     };
 
 
@@ -698,7 +743,7 @@ export default function DiagnosticPage() {
                                         </p>
                                     </div>
                                     <div className="mt-2 text-xs text-zinc-400 text-right">
-                                        * PDF 다운로드 시 한글 폰트가 지원되지 않을 수 있습니다. (데모 버전)
+                                        * PDF 다운로드 시 인터넷 연결이 필요합니다. (한글 폰트 다운로드)
                                     </div>
                                 </motion.div>
                             )}
