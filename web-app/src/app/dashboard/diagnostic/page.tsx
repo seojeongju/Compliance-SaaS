@@ -111,6 +111,7 @@ export default function DiagnosticPage() {
         description: "",
     });
     const [globalResult, setGlobalResult] = useState<GlobalRoadmapResult | null>(null);
+    const [userRole, setUserRole] = useState<"admin" | "user">("user");
 
     useEffect(() => {
         loadHistory();
@@ -125,12 +126,13 @@ export default function DiagnosticPage() {
             if (user) {
                 const { data } = await supabase
                     .from('profiles')
-                    .select('tier')
+                    .select('tier, role')
                     .eq('id', user.id)
                     .single();
 
                 if (data) {
                     setUserTier(data.tier as "free" | "pro");
+                    setUserRole(data.role as "admin" | "user");
                 }
             }
         } catch (e) {
@@ -423,6 +425,17 @@ export default function DiagnosticPage() {
                         </span> (클릭하여 변경)
                     </button>
                 </div>
+                {/* Admin Shortcut */}
+                {userRole === 'admin' && (
+                    <div className="flex justify-center mt-2">
+                        <button
+                            onClick={() => window.location.href = '/admin/dashboard'}
+                            className="flex items-center gap-2 bg-zinc-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-zinc-800 transition-colors shadow-lg"
+                        >
+                            <Shield className="h-4 w-4" /> 관리자 대시보드 (Admin)
+                        </button>
+                    </div>
+                )}
             </div>
 
             <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
