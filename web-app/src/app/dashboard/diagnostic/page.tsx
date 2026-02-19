@@ -59,6 +59,20 @@ interface LabelResult {
     additional_info: string;
 }
 
+interface GlobalRoadmapResult {
+    target_country: string;
+    key_certifications: Array<{
+        name: string;
+        description: string;
+        mandatory: boolean;
+    }>;
+    regulatory_authority: string;
+    estimated_timeline: string;
+    estimated_cost: string;
+    process_steps: string[];
+    customs_tips: string;
+}
+
 // --- Main Component ---
 
 export default function DiagnosticPage() {
@@ -88,6 +102,15 @@ export default function DiagnosticPage() {
         precautions: "",
     });
     const [labelResult, setLabelResult] = useState<LabelResult | null>(null);
+
+    // Global Roadmap States
+    const [globalFormData, setGlobalFormData] = useState({
+        productName: "",
+        category: "electronics",
+        targetCountry: "USA",
+        description: "",
+    });
+    const [globalResult, setGlobalResult] = useState<GlobalRoadmapResult | null>(null);
 
     useEffect(() => {
         loadHistory();
@@ -230,6 +253,33 @@ export default function DiagnosticPage() {
             console.error(err);
             setError("라벨 생성 중 오류가 발생했습니다.");
             setStep("result"); // Should ideally allow retry
+        }
+    };
+
+    const handleGlobalSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setStep("analyzing");
+        setError(null);
+
+        try {
+            const supabase = createSupabaseClient();
+            const { data: { user } } = await supabase.auth.getUser();
+
+            const response = await fetch("/api/diagnostic/global", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ...globalFormData, userId: user?.id }),
+            });
+
+            if (!response.ok) throw new Error("Failed to generate roadmap");
+
+            const data: GlobalRoadmapResult = await response.json();
+            setGlobalResult(data);
+            setStep("result");
+        } catch (err) {
+            console.error(err);
+            setError("로드맵 생성 중 오류가 발생했습니다.");
+            setStep("result");
         }
     };
 
@@ -540,7 +590,7 @@ export default function DiagnosticPage() {
                         { id: "risk", title: "위험성 평가 (ISO)", icon: AlertTriangle, desc: "제품의 타겟 연령과 사용 환경에 따른 잠재적 위험 요소를 평가합니다.", blocked: true },
                         { id: "smart_doc", title: "스마트 서류 생성", icon: FileText, desc: "시험 신청서, 제품 설명서 등 복잡한 공문서 초안을 AI가 작성합니다.", blocked: true },
                         { id: "ip_check", title: "지재권 침해 분석", icon: Scale, desc: "제품 디자인이나 상표가 기존 특허권을 침해하는지 대조 분석합니다.", blocked: true },
-                        { id: "global", title: "글로벌 수출 로드맵", icon: Globe, desc: "미국(FDA), 유럽(CE) 등 해외 수출 시 필요한 국가별 인증 정보를 제공합니다.", blocked: true },
+                        { id: "global", title: "글로벌 수출 로드맵", icon: Globe, desc: "미국(FDA), 유럽(CE) 등 해외 수출 시 필요한 국가별 인증 정보를 제공합니다.", blocked: false }, // Unlocked
                     ].map((item, idx) => (
                         <div
                             key={idx}
@@ -744,6 +794,172 @@ export default function DiagnosticPage() {
                                     </div>
                                     <div className="mt-2 text-xs text-zinc-400 text-right">
                                         * PDF 다운로드 시 인터넷 연결이 필요합니다. (한글 폰트 다운로드)
+                                    </div>
+                                </motion.div>
+                            )}
+                        </div>
+                    )}
+
+                    {activeDetailedTool === 'global' && (
+                        <div className="max-w-4xl mx-auto">
+                            <div className="mb-6">
+                                <h2 className="text-2xl font-bold text-zinc-900 mb-2">🌍 글로벌 수출 로드맵 (Global Export Roadmap)</h2>
+                                <p className="text-zinc-600">해외 진출 시 필요한 국가별 인증 및 규제 정보를 분석하여 제공합니다.</p>
+                            </div>
+
+                            {!globalResult ? (
+                                <form onSubmit={handleGlobalSubmit} className="space-y-6 rounded-xl border bg-white p-8 shadow-sm">
+                                    <div className="grid gap-6 md:grid-cols-2">
+                                        <div>
+                                            <label className="mb-2 block text-sm font-medium text-zinc-700">품명 (제품명)</label>
+                                            <input
+                                                required
+                                                className="w-full rounded-md border border-zinc-300 px-4 py-2"
+                                                value={globalFormData.productName}
+                                                onChange={e => setGlobalFormData({ ...globalFormData, productName: e.target.value })}
+                                                placeholder="예: 스마트 LED 조명"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 block text-sm font-medium text-zinc-700">카테고리</label>
+                                            <select
+                                                className="w-full rounded-md border border-zinc-300 px-4 py-2"
+                                                value={globalFormData.category}
+                                                onChange={(e) => setGlobalFormData({ ...globalFormData, category: e.target.value })}
+                                            >
+                                                <option value="electronics">전자제품 (Electronics)</option>
+                                                <option value="cosmetics">화장품 (Cosmetics)</option>
+                                                <option value="food">식품 (Food)</option>
+                                                <option value="kids">어린이 제품 (Toys/Kids)</option>
+                                                <option value="medical">의료기기 (Medical Devices)</option>
+                                                <option value="chemistry">화학제품 (Chemicals)</option>
+                                                <option value="machinery">기계류 (Machinery)</option>
+                                                <option value="textile">섬유/의류 (Textiles)</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 block text-sm font-medium text-zinc-700">수출 대상 국가</label>
+                                            <select
+                                                className="w-full rounded-md border border-zinc-300 px-4 py-2"
+                                                value={globalFormData.targetCountry}
+                                                onChange={(e) => setGlobalFormData({ ...globalFormData, targetCountry: e.target.value })}
+                                            >
+                                                <option value="USA">미국 (USA)</option>
+                                                <option value="EU">유럽연합 (EU)</option>
+                                                <option value="Japan">일본 (Japan)</option>
+                                                <option value="China">중국 (China)</option>
+                                                <option value="Vietnam">베트남 (Vietnam)</option>
+                                                <option value="UK">영국 (UK)</option>
+                                                <option value="Australia">호주 (Australia)</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 block text-sm font-medium text-zinc-700">제품 설명 (선택)</label>
+                                            <input
+                                                className="w-full rounded-md border border-zinc-300 px-4 py-2"
+                                                value={globalFormData.description}
+                                                onChange={e => setGlobalFormData({ ...globalFormData, description: e.target.value })}
+                                                placeholder="예: 블루투스 기능을 포함한 가정용 조명기기"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-end pt-4">
+                                        <button
+                                            type="submit"
+                                            disabled={step === "analyzing"}
+                                            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-6 py-3 font-semibold text-white shadow-md hover:bg-indigo-700 transition disabled:opacity-50"
+                                        >
+                                            {step === "analyzing" ? (
+                                                <>
+                                                    <Loader2 className="h-5 w-5 animate-spin" /> 분석 중...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Globe className="h-5 w-5" /> 로드맵 생성하기
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </form>
+                            ) : (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="space-y-6"
+                                >
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h3 className="text-xl font-bold text-zinc-900">
+                                            🇺🇸 {globalResult.target_country} 수출 로드맵
+                                        </h3>
+                                        <button
+                                            onClick={() => setGlobalResult(null)}
+                                            className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-900"
+                                        >
+                                            다른 국가 확인하기
+                                        </button>
+                                    </div>
+
+                                    {/* Key Certifications */}
+                                    <div className="grid md:grid-cols-2 gap-6">
+                                        <div className="rounded-xl border bg-white p-6 shadow-sm">
+                                            <h4 className="flex items-center gap-2 font-bold text-zinc-900 mb-4">
+                                                <Shield className="h-5 w-5 text-indigo-600" /> 필수 인증 및 규제
+                                            </h4>
+                                            <ul className="space-y-3">
+                                                {globalResult.key_certifications.map((cert, idx) => (
+                                                    <li key={idx} className="flex items-start gap-3 rounded-lg bg-zinc-50 p-3 border border-zinc-100">
+                                                        <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ${cert.mandatory ? "bg-red-100 text-red-600" : "bg-orange-100 text-orange-600"}`}>
+                                                            {cert.mandatory ? "!" : "?"}
+                                                        </span>
+                                                        <div>
+                                                            <div className="font-bold text-sm text-zinc-900">{cert.name}</div>
+                                                            <div className="text-xs text-zinc-500">{cert.description}</div>
+                                                        </div>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+
+                                        <div className="rounded-xl border bg-white p-6 shadow-sm">
+                                            <h4 className="flex items-center gap-2 font-bold text-zinc-900 mb-4">
+                                                <Clock className="h-5 w-5 text-indigo-600" /> 예상 기간 및 비용
+                                            </h4>
+                                            <div className="space-y-4 text-sm">
+                                                <div className="flex justify-between border-b pb-2">
+                                                    <span className="text-zinc-600">규제 당국</span>
+                                                    <span className="font-bold text-zinc-900">{globalResult.regulatory_authority}</span>
+                                                </div>
+                                                <div className="flex justify-between border-b pb-2">
+                                                    <span className="text-zinc-600">예상 소요 기간</span>
+                                                    <span className="font-bold text-zinc-900">{globalResult.estimated_timeline}</span>
+                                                </div>
+                                                <div className="flex justify-between pb-2">
+                                                    <span className="text-zinc-600">예상 비용 (추정)</span>
+                                                    <span className="font-bold text-zinc-900">{globalResult.estimated_cost}</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-6 rounded-lg bg-indigo-50 p-4 text-xs text-indigo-800">
+                                                <strong>💡 통관 팁: </strong>
+                                                {globalResult.customs_tips}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Process Steps */}
+                                    <div className="rounded-xl border bg-white p-6 shadow-sm">
+                                        <h4 className="font-bold text-zinc-900 mb-4">단계별 진행 가이드</h4>
+                                        <div className="relative border-l-2 border-indigo-100 ml-3 space-y-6 pl-6 pb-2">
+                                            {globalResult.process_steps.map((step, idx) => (
+                                                <div key={idx} className="relative">
+                                                    <span className="absolute -left-[33px] flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-600 font-bold border-2 border-white ring-2 ring-indigo-50">
+                                                        {idx + 1}
+                                                    </span>
+                                                    <p className="text-sm text-zinc-700 leading-relaxed font-medium pt-1">{step}</p>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 </motion.div>
                             )}
