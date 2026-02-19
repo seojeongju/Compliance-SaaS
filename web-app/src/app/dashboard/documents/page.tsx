@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { createSupabaseClient } from "../../../lib/supabaseClient";
-import { FileText, Download, Copy, X, Loader2, Calendar, FileType } from "lucide-react";
+import { FileText, Download, Copy, X, Loader2, Calendar, FileType, Zap, CheckCircle, ChevronRight, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-interface Document {
+// --- Types ---
+
+interface GeneratedDocument {
+    type: 'document';
     id: string;
     title: string;
     doc_type: string;
@@ -14,30 +17,83 @@ interface Document {
     status: string;
 }
 
+interface DiagnosticResultItem {
+    type: 'diagnostic';
+    id: string;
+    product_name: string;
+    tool_type: string; // 'general', 'label', 'global'
+    result_json: any; // The structured JSON result
+    created_at: string;
+}
+
+type CombinedItem = GeneratedDocument | DiagnosticResultItem;
+
 export default function DocumentsPage() {
-    const [documents, setDocuments] = useState<Document[]>([]);
+    const [items, setItems] = useState<CombinedItem[]>([]);
     const [loading, setLoading] = useState(true);
-    const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
+    const [selectedItem, setSelectedItem] = useState<CombinedItem | null>(null);
     const [copySuccess, setCopySuccess] = useState(false);
 
     useEffect(() => {
-        fetchDocuments();
+        fetchData();
     }, []);
 
-    const fetchDocuments = async () => {
+    const fetchData = async () => {
         try {
             setLoading(true);
             const supabase = createSupabaseClient();
-            const { data, error } = await supabase
+
+            // 1. Fetch Generated Documents
+            const { data: documents, error: docError } = await (supabase as any)
                 .from("documents")
                 .select("*")
                 .order("created_at", { ascending: false });
 
-            if (error) {
-                console.error("Error fetching documents:", error);
-            } else {
-                setDocuments(data || []);
+            if (docError) console.error("Error fetching documents:", docError);
+
+            // 2. Fetch Diagnostic Results
+            const { data: diagnostics, error: diagError } = await (supabase as any)
+                .from("diagnostic_results")
+                .select("*")
+                .order("created_at", { ascending: false });
+
+            if (diagError) console.error("Error fetching diagnostics:", diagError);
+
+            // 3. Combine and Normalize
+            const combined: CombinedItem[] = [];
+
+            if (documents) {
+                documents.forEach((doc: any) => {
+                    combined.push({
+                        type: 'document',
+                        id: doc.id,
+                        title: doc.title,
+                        doc_type: doc.doc_type,
+                        content: doc.content,
+                        created_at: doc.created_at,
+                        status: doc.status
+                    });
+                });
             }
+
+            if (diagnostics) {
+                diagnostics.forEach((diag: any) => {
+                    combined.push({
+                        type: 'diagnostic',
+                        id: diag.id,
+                        product_name: diag.product_name,
+                        tool_type: diag.tool_type || 'general',
+                        result_json: diag.result_json,
+                        created_at: diag.created_at
+                    });
+                });
+            }
+
+            // Sort by created_at desc
+            combined.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+            setItems(combined);
+
         } catch (error) {
             console.error("Unexpected error:", error);
         } finally {
@@ -46,9 +102,18 @@ export default function DocumentsPage() {
     };
 
     const handleCopy = async () => {
-        if (!selectedDoc) return;
+        if (!selectedItem) return;
+        let textToCopy = "";
+
+        if (selectedItem.type === 'document') {
+            textToCopy = selectedItem.content;
+        } else {
+            // For diagnostic result, copy a summary
+            textToCopy = JSON.stringify(selectedItem.result_json, null, 2);
+        }
+
         try {
-            await navigator.clipboard.writeText(selectedDoc.content);
+            await navigator.clipboard.writeText(textToCopy);
             setCopySuccess(true);
             setTimeout(() => setCopySuccess(false), 2000);
         } catch (err) {
@@ -57,12 +122,24 @@ export default function DocumentsPage() {
     };
 
     const handleDownload = () => {
-        if (!selectedDoc) return;
+        if (!selectedItem) return;
+
+        let content = "";
+        let filename = "";
+
+        if (selectedItem.type === 'document') {
+            content = selectedItem.content;
+            filename = `${selectedItem.title.replace(/\s+/g, "_")}.md`;
+        } else {
+            content = JSON.stringify(selectedItem.result_json, null, 2);
+            filename = `${selectedItem.product_name.replace(/\s+/g, "_")}_diagnostic.json`;
+        }
+
         const element = document.createElement("a");
-        const file = new Blob([selectedDoc.content], { type: "text/markdown" });
+        const file = new Blob([content], { type: "text/plain" });
         element.href = URL.createObjectURL(file);
-        element.download = `${selectedDoc.title.replace(/\s+/g, "_")}.md`;
-        document.body.appendChild(element); // Required for this to work in FireFox
+        element.download = filename;
+        document.body.appendChild(element);
         element.click();
         document.body.removeChild(element);
     };
@@ -75,15 +152,120 @@ export default function DocumentsPage() {
         });
     };
 
+    // --- Render Content Logic ---
+    const renderDetailContent = (item: CombinedItem) => {
+        if (item.type === 'document') {
+            return (
+                <div className="prose prose-zinc max-w-none prose-headings:font-bold prose-headings:text-zinc-900 prose-p:text-zinc-600 prose-li:text-zinc-600">
+                    <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-zinc-700">
+                        {item.content}
+                    </pre>
+                </div>
+            );
+        } else {
+            // Render Diagnostic Result (Structured)
+            const result = item.result_json;
+            if (!result) return <div className="text-zinc-500">데이터가 손상되었습니다.</div>;
+
+            return (
+                <div className="space-y-6">
+                    {/* Summary Card */}
+                    <div className="rounded-xl border border-blue-100 bg-blue-50 p-6">
+                        <h2 className="flex items-center gap-2 text-xl font-bold text-blue-900">
+                            <CheckCircle className="h-6 w-6 text-blue-600" />
+                            진단 결과 요약
+                        </h2>
+                        <p className="mt-2 font-medium text-blue-800">
+                            {result.summary}
+                        </p>
+                        <div className="mt-4 flex items-center gap-2 text-sm text-blue-600">
+                            <Zap className="h-4 w-4" />
+                            <span>규제 대상 확률: <strong>{result.probability_score}%</strong></span>
+                        </div>
+                    </div>
+
+                    {/* Action Roadmap */}
+                    <div className="grid gap-6 md:grid-cols-2">
+                        {/* Required Certifications */}
+                        <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+                            <h3 className="mb-4 text-lg font-bold text-zinc-900">1. 필수 인증 항목</h3>
+                            <ul className="space-y-3">
+                                {result.certifications && result.certifications.length > 0 ? (
+                                    result.certifications.map((cert: any, index: number) => (
+                                        <li key={index} className="flex items-start gap-3 rounded-lg border border-zinc-100 bg-zinc-50 p-3">
+                                            <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${cert.mandatory ? "bg-red-100 text-red-600" : "bg-orange-100 text-orange-600"
+                                                }`}>
+                                                {cert.mandatory ? "법정" : "권장"}
+                                            </span>
+                                            <div>
+                                                <h4 className="font-semibold text-zinc-900">{cert.name}</h4>
+                                                <p className="text-sm text-zinc-500">{cert.description}</p>
+                                            </div>
+                                        </li>
+                                    ))
+                                ) : (
+                                    <p className="text-zinc-500">특별한 인증이 필요하지 않은 것으로 보입니다.</p>
+                                )}
+                            </ul>
+                        </div>
+
+                        {/* Cost & Timeline */}
+                        <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+                            <h3 className="mb-4 text-lg font-bold text-zinc-900">2. 예상 비용 및 기간</h3>
+                            <div className="space-y-4">
+                                <div className="flex justify-between border-b pb-2">
+                                    <span className="text-zinc-600">예상 소요 기간</span>
+                                    <span className="font-bold text-zinc-900">{result.estimated_duration}</span>
+                                </div>
+                                <div className="flex justify-between border-b pb-2">
+                                    <span className="text-zinc-600">시험/인증 비용 (추정)</span>
+                                    <span className="font-bold text-zinc-900">{result.estimated_cost}</span>
+                                </div>
+                                <div className="flex justify-between pb-2">
+                                    <span className="text-zinc-600">서류 대행 수수료</span>
+                                    <span className="font-bold text-blue-600">월 49,000원 (구독 시)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Next Steps */}
+                    <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+                        <h3 className="mb-4 text-lg font-bold text-zinc-900">3. 다음 단계 (서류 준비)</h3>
+                        <div className="overflow-hidden rounded-lg border">
+                            <div className="flex items-center justify-between bg-zinc-50 px-4 py-3">
+                                <span className="font-medium">필요 서류 목록</span>
+                                <span className="text-sm text-zinc-500">{result.required_documents?.length || 0}개 항목</span>
+                            </div>
+                            <div className="divide-y">
+                                {result.required_documents && result.required_documents.map((doc: any, index: number) => (
+                                    <div key={index} className="flex items-center justify-between px-4 py-3">
+                                        <div className="flex items-center gap-3">
+                                            <FileText className="h-4 w-4 text-zinc-400" />
+                                            <div>
+                                                <span className="block font-medium text-zinc-900">{doc.name}</span>
+                                                <span className="text-xs text-zinc-500">{doc.description}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+    };
+
     return (
         <div className="space-y-8">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-zinc-900">내 문서함</h1>
-                    <p className="text-zinc-500 mt-1">AI가 생성한 모든 문서를 확인하고 관리하세요.</p>
+                    <p className="text-zinc-500 mt-1">AI가 생성한 문서 및 규제 진단 리포트를 확인하세요.</p>
                 </div>
                 <button
-                    onClick={fetchDocuments}
+                    onClick={fetchData}
                     className="text-sm text-blue-600 hover:text-blue-800 font-medium"
                 >
                     새로고침
@@ -94,46 +276,53 @@ export default function DocumentsPage() {
                 <div className="flex h-64 items-center justify-center">
                     <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
                 </div>
-            ) : documents.length === 0 ? (
+            ) : items.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-zinc-200 bg-zinc-50 p-12 text-center">
                     <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 mb-4">
                         <FileText className="h-6 w-6 text-zinc-400" />
                     </div>
-                    <h3 className="text-lg font-medium text-zinc-900">아직 저장된 문서가 없습니다</h3>
+                    <h3 className="text-lg font-medium text-zinc-900">아직 저장된 항목이 없습니다</h3>
                     <p className="mt-2 text-zinc-500 text-sm">
                         규제 진단을 완료하고 필요한 문서를 생성해보세요.
                     </p>
                 </div>
             ) : (
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                    {documents.map((doc) => (
+                    {items.map((item) => (
                         <motion.div
-                            key={doc.id}
+                            key={item.id}
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             whileHover={{ y: -4 }}
-                            className="group relative cursor-pointer overflow-hidden rounded-xl border bg-white p-6 shadow-sm transition-all hover:shadow-md hover:border-blue-200"
-                            onClick={() => setSelectedDoc(doc)}
+                            className={`group relative cursor-pointer overflow-hidden rounded-xl border p-6 shadow-sm transition-all hover:shadow-md 
+                                ${item.type === 'diagnostic' ? 'bg-indigo-50/30 border-indigo-100 hover:border-indigo-300' : 'bg-white border-zinc-200 hover:border-blue-200'}
+                            `}
+                            onClick={() => setSelectedItem(item)}
                         >
                             <div className="mb-4 flex items-start justify-between">
-                                <div className="rounded-lg bg-blue-50 p-3 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                                    <FileText className="h-6 w-6" />
+                                <div className={`rounded-lg p-3 transition-colors ${item.type === 'diagnostic'
+                                        ? 'bg-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white'
+                                        : 'bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white'
+                                    }`}>
+                                    {item.type === 'diagnostic' ? <Zap className="h-6 w-6" /> : <FileText className="h-6 w-6" />}
                                 </div>
-                                <span className="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-800">
-                                    {doc.status === 'draft' ? '초안' : '완료'}
+                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium 
+                                    ${item.type === 'diagnostic' ? 'bg-indigo-100 text-indigo-800' : 'bg-zinc-100 text-zinc-800'}
+                                `}>
+                                    {item.type === 'diagnostic' ? '진단 리포트' : '문서 초안'}
                                 </span>
                             </div>
                             <h3 className="mb-2 text-lg font-bold text-zinc-900 line-clamp-1 group-hover:text-blue-600 transition-colors">
-                                {doc.title}
+                                {item.type === 'document' ? item.title : item.product_name}
                             </h3>
                             <div className="flex items-center gap-4 text-xs text-zinc-500 mt-4 border-t pt-4">
                                 <span className="flex items-center gap-1">
                                     <FileType className="h-3 w-3" />
-                                    {doc.doc_type}
+                                    {item.type === 'document' ? item.doc_type : '규제 진단'}
                                 </span>
                                 <span className="flex items-center gap-1">
                                     <Calendar className="h-3 w-3" />
-                                    {formatDate(doc.created_at)}
+                                    {formatDate(item.created_at)}
                                 </span>
                             </div>
                         </motion.div>
@@ -141,16 +330,16 @@ export default function DocumentsPage() {
                 </div>
             )}
 
-            {/* Document Detail Modal */}
+            {/* Item Detail Modal */}
             <AnimatePresence>
-                {selectedDoc && (
+                {selectedItem && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
                         <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                            onClick={() => setSelectedDoc(null)}
+                            onClick={() => setSelectedItem(null)}
                         />
                         <motion.div
                             initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -161,17 +350,21 @@ export default function DocumentsPage() {
                             {/* Modal Header */}
                             <div className="flex items-center justify-between border-b px-6 py-4 bg-zinc-50/50 backdrop-blur-sm sticky top-0 z-10">
                                 <div>
-                                    <h2 className="text-xl font-bold text-zinc-900">{selectedDoc.title}</h2>
+                                    <h2 className="text-xl font-bold text-zinc-900">
+                                        {selectedItem.type === 'document' ? selectedItem.title : selectedItem.product_name}
+                                    </h2>
                                     <p className="text-sm text-zinc-500 flex items-center gap-2 mt-1">
-                                        <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wide">
-                                            {selectedDoc.doc_type}
+                                        <span className={`px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wide
+                                            ${selectedItem.type === 'diagnostic' ? 'bg-indigo-100 text-indigo-700' : 'bg-blue-100 text-blue-700'}
+                                        `}>
+                                            {selectedItem.type === 'document' ? selectedItem.doc_type : '규제 진단 리포트'}
                                         </span>
                                         <span className="text-zinc-300">|</span>
-                                        <span>{formatDate(selectedDoc.created_at)}</span>
+                                        <span>{formatDate(selectedItem.created_at)}</span>
                                     </p>
                                 </div>
                                 <button
-                                    onClick={() => setSelectedDoc(null)}
+                                    onClick={() => setSelectedItem(null)}
                                     className="rounded-full p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors"
                                 >
                                     <X className="h-6 w-6" />
@@ -181,12 +374,7 @@ export default function DocumentsPage() {
                             {/* Modal Content */}
                             <div className="flex-1 overflow-y-auto bg-zinc-50/30 p-6 sm:p-8">
                                 <div className="mx-auto max-w-3xl rounded-xl bg-white p-8 shadow-sm border border-zinc-100 min-h-full">
-                                    <div className="prose prose-zinc max-w-none prose-headings:font-bold prose-headings:text-zinc-900 prose-p:text-zinc-600 prose-li:text-zinc-600">
-                                        {/* Simple formatting for markdown content - could use react-markdown later */}
-                                        <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-zinc-700">
-                                            {selectedDoc.content}
-                                        </pre>
-                                    </div>
+                                    {renderDetailContent(selectedItem)}
                                 </div>
                             </div>
 
@@ -203,7 +391,7 @@ export default function DocumentsPage() {
                                     ) : (
                                         <>
                                             <Copy className="h-4 w-4" />
-                                            <span>내용 복사</span>
+                                            <span>{selectedItem.type === 'document' ? '내용 복사' : 'JSON 복사'}</span>
                                         </>
                                     )}
                                 </button>
@@ -212,7 +400,7 @@ export default function DocumentsPage() {
                                     className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 shadow-md hover:shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
                                 >
                                     <Download className="h-4 w-4" />
-                                    <span>다운로드 (.md)</span>
+                                    <span>{selectedItem.type === 'document' ? '다운로드 (.md)' : '다운로드 (.json)'}</span>
                                 </button>
                             </div>
                         </motion.div>
