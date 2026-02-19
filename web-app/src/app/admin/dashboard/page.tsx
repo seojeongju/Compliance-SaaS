@@ -39,6 +39,11 @@ export default function AdminDashboard() {
     const [currentUser, setCurrentUser] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
 
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalLogsCount, setTotalLogsCount] = useState(0);
+    const ITEMS_PER_PAGE = 5;
+
     useEffect(() => {
         checkAdminAccess();
     }, []);
@@ -61,12 +66,7 @@ export default function AdminDashboard() {
                 .single();
 
             if (error || profile?.role !== "admin") {
-                // If profiles table doesn't exist or user is not admin
-                // For Development Purpose: We might allow access if table is missing or just show error
                 setError("관리자 권한이 필요합니다.");
-                // In production, redirect immediately: router.push("/dashboard");
-                // For now, let's load data anyway if it's local dev, BUT ideally we block
-                // Let's assume strict mode:
                 if (process.env.NODE_ENV === 'production') {
                     router.push("/dashboard");
                     return;
@@ -75,10 +75,34 @@ export default function AdminDashboard() {
 
             setCurrentUser(user);
             fetchDashboardData();
+            fetchLogs(1);
 
         } catch (err) {
             console.error("Admin check error:", err);
             setError("관리자 확인 중 오류가 발생했습니다.");
+        }
+    };
+
+    const fetchLogs = async (page: number) => {
+        try {
+            const supabase = createSupabaseClient();
+            const from = (page - 1) * ITEMS_PER_PAGE;
+            const to = from + ITEMS_PER_PAGE - 1;
+
+            const { data: logsData, count, error: logsError } = await (supabase as any)
+                .from("diagnostic_results")
+                .select("id, product_name, created_at, user_id", { count: 'exact' })
+                .order("created_at", { ascending: false })
+                .range(from, to);
+
+            if (logsError) throw logsError;
+
+            setLogs(logsData as unknown as DiagnosticLog[] || []);
+            if (count !== null) setTotalLogsCount(count);
+            setCurrentPage(page);
+
+        } catch (err) {
+            console.error("Logs fetch error:", err);
         }
     };
 
@@ -88,7 +112,6 @@ export default function AdminDashboard() {
             const supabase = createSupabaseClient();
 
             // 1. Fetch Users
-            // Note: In real production with many users, use pagination
             const { data: usersData, error: usersError } = await supabase
                 .from("profiles")
                 .select("*")
@@ -97,20 +120,13 @@ export default function AdminDashboard() {
 
             if (usersError) throw usersError;
 
-            // 2. Fetch Diagnostics Logs
-            const { data: logsData, error: logsError } = await (supabase as any)
+            // 2. Fetch Diagnostics Count (Separate from logs list)
+            const { count: diagnosticCount } = await (supabase as any)
                 .from("diagnostic_results")
-                .select("id, product_name, created_at, user_id")
-                .order("created_at", { ascending: false })
-                .limit(10);
+                .select("*", { count: 'exact', head: true });
 
-            if (logsError && logsError.code !== 'PGRST116') {
-                // Ignore if table doesn't exist yet
-                console.warn("Diagnostics table fetch error", logsError);
-            }
 
             setUsers(usersData as UserProfile[] || []);
-            setLogs(logsData as unknown as DiagnosticLog[] || []);
 
             // 3. Calculate Stats
             const totalUsers = usersData?.length || 0;
@@ -123,13 +139,11 @@ export default function AdminDashboard() {
                 totalUsers,
                 activeToday,
                 proUsers,
-                totalDiagnostics: logsData?.length || 0, // Should be count
+                totalDiagnostics: diagnosticCount || 0,
             });
 
         } catch (err: any) {
             console.error("Dashboard data load error:", err);
-            // setError("데이터 로드 실패: " + err.message);
-            // Don't block UI if just data load fails (e.g., tables missing)
         } finally {
             setLoading(false);
         }
@@ -359,10 +373,11 @@ export default function AdminDashboard() {
                     {/* Recent Logs & Alerts */}
                     <div className="space-y-6">
                         <div className="bg-white rounded-xl border border-zinc-200 p-6 shadow-sm">
-                            <h3 className="text-sm font-bold text-zinc-900 mb-4 flex items-center gap-2">
-                                <Activity className="h-4 w-4 text-zinc-500" /> 최근 진단 로그
+                            <h3 className="text-sm font-bold text-zinc-900 mb-4 flex items-center justify-between">
+                                <span className="flex items-center gap-2"><Activity className="h-4 w-4 text-zinc-500" /> 최근 진단 로그</span>
+                                <span className="text-xs text-zinc-400 font-normal">Page {currentPage} of {Math.ceil(totalLogsCount / ITEMS_PER_PAGE) || 1}</span>
                             </h3>
-                            <ul className="space-y-4">
+                            <ul className="space-y-4 min-h-[300px]">
                                 {logs.length === 0 ? (
                                     <li className="text-xs text-zinc-400 text-center py-4">최근 기록 없음</li>
                                 ) : (
@@ -377,6 +392,24 @@ export default function AdminDashboard() {
                                     ))
                                 )}
                             </ul>
+
+                            {/* Pagination Controls */}
+                            <div className="flex items-center justify-between pt-4 mt-2 border-t border-zinc-100">
+                                <button
+                                    onClick={() => fetchLogs(currentPage - 1)}
+                                    disabled={currentPage === 1}
+                                    className="text-xs px-2 py-1 rounded bg-zinc-100 text-zinc-600 disabled:opacity-50 hover:bg-zinc-200"
+                                >
+                                    Previous
+                                </button>
+                                <button
+                                    onClick={() => fetchLogs(currentPage + 1)}
+                                    disabled={currentPage * ITEMS_PER_PAGE >= totalLogsCount}
+                                    className="text-xs px-2 py-1 rounded bg-zinc-100 text-zinc-600 disabled:opacity-50 hover:bg-zinc-200"
+                                >
+                                    Next
+                                </button>
+                            </div>
                         </div>
 
                         <div className="bg-white rounded-xl border border-zinc-200 p-6 shadow-sm">
