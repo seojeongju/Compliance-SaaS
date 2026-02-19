@@ -350,36 +350,24 @@ export default function DiagnosticPage() {
                 return;
             }
 
-            if (currentId) {
-                // Update existing record
-                const { error } = await (supabase as any)
-                    .from('diagnostic_results')
-                    .update({
-                        product_name: formData.productName,
-                        description: formData.description,
-                        category: formData.category,
-                        result_json: result,
-                        // tool_type is usually static for general diagnostics
-                    })
-                    .eq('id', currentId);
+            // Always insert new record to maintain history/snapshots
+            const { data, error } = await (supabase as any).from('diagnostic_results').insert({
+                user_id: user.id,
+                product_name: formData.productName,
+                description: formData.description,
+                category: formData.category,
+                result_json: result,
+                tool_type: 'general'
+            }).select();
 
-                if (error) throw error;
-                alert("진단 결과가 성공적으로 업데이트되었습니다.");
-            } else {
-                // Insert new record
-                const { error } = await (supabase as any).from('diagnostic_results').insert({
-                    user_id: user.id,
-                    product_name: formData.productName,
-                    description: formData.description,
-                    category: formData.category,
-                    result_json: result,
-                    tool_type: 'general'
-                });
+            if (error) throw error;
 
-                if (error) throw error;
-                alert("진단 결과가 성공적으로 저장되었습니다.");
+            // If we want the UI to track the "new" current ID after saving
+            if (data && data[0]) {
+                setCurrentId(data[0].id);
             }
 
+            alert("진단 결과가 성공적으로 저장되었습니다. (히스토리에 새 기록이 추가되었습니다)");
             loadHistory(); // Refresh history
 
         } catch (e) {
