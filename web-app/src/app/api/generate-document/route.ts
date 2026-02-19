@@ -74,14 +74,13 @@ export async function POST(req: Request) {
         // Save result to Supabase
         const supabase = createSupabaseClient();
         const { error: dbError } = await supabase
-            .from('diagnostic_results')
+            .from('documents')
             .insert([
                 {
-                    product_name: productName,
-                    category: category,
-                    // Store explicitly as document result
-                    description: `[Document: ${documentType}] ${description}`,
-                    result_json: parsedData,
+                    title: parsedData.title,
+                    doc_type: documentType,
+                    content: parsedData.content,
+                    status: 'draft',
                 }
             ]);
 
