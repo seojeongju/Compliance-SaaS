@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { AlertCircle, CheckCircle, ChevronRight, FileText, Loader2, Search, Zap, Download } from "lucide-react";
+import { useState, useEffect } from "react";
+import { AlertCircle, CheckCircle, ChevronRight, FileText, Loader2, Search, Zap, Download, Clock, History } from "lucide-react";
+import { createSupabaseClient } from "../../../lib/supabaseClient";
 import { motion } from "framer-motion";
 
 // Define the type for different states
@@ -45,6 +46,34 @@ export default function DiagnosticPage() {
     const [error, setError] = useState<string | null>(null);
     const [generatedDoc, setGeneratedDoc] = useState<GeneratedDoc | null>(null);
     const [generatingDocName, setGeneratingDocName] = useState<string>("");
+    const [history, setHistory] = useState<any[]>([]);
+
+    useEffect(() => {
+        async function loadHistory() {
+            try {
+                const supabase = createSupabaseClient();
+                const { data } = await supabase
+                    .from('diagnostic_results')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(6);
+                if (data) setHistory(data);
+            } catch (e) {
+                console.error("History load error", e);
+            }
+        }
+        loadHistory();
+    }, []);
+
+    const loadHistoryItem = (item: any) => {
+        setResult(item.result_json);
+        setFormData({
+            productName: item.product_name,
+            category: item.category,
+            description: item.description || "",
+        });
+        setStep("result");
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -116,76 +145,115 @@ export default function DiagnosticPage() {
             </div>
 
             {step === "input" && (
-                <motion.form
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="rounded-xl border bg-white p-8 shadow-sm"
-                    onSubmit={handleSubmit}
-                >
-                    {error && (
-                        <div className="mb-6 flex items-center gap-2 rounded-lg bg-red-50 p-4 text-red-700">
-                            <AlertCircle className="h-5 w-5" />
-                            <p>{error}</p>
-                        </div>
-                    )}
-                    <div className="space-y-6">
-                        <div>
-                            <label className="mb-2 block text-sm font-medium text-zinc-700">
-                                제품명 (모델명)
-                            </label>
-                            <input
-                                type="text"
-                                required
-                                className="w-full rounded-md border border-zinc-300 px-4 py-2 text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                placeholder="예: 휴대용 블루투스 선풍기"
-                                value={formData.productName}
-                                onChange={(e) => setFormData({ ...formData, productName: e.target.value })}
-                            />
+                <>
+                    <motion.form
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="rounded-xl border bg-white p-8 shadow-sm"
+                        onSubmit={handleSubmit}
+                    >
+                        {error && (
+                            <div className="mb-6 flex items-center gap-2 rounded-lg bg-red-50 p-4 text-red-700">
+                                <AlertCircle className="h-5 w-5" />
+                                <p>{error}</p>
+                            </div>
+                        )}
+                        <div className="space-y-6">
+                            <div>
+                                <label className="mb-2 block text-sm font-medium text-zinc-700">
+                                    제품명 (모델명)
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    className="w-full rounded-md border border-zinc-300 px-4 py-2 text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    placeholder="예: 휴대용 블루투스 선풍기"
+                                    value={formData.productName}
+                                    onChange={(e) => setFormData({ ...formData, productName: e.target.value })}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="mb-2 block text-sm font-medium text-zinc-700">
+                                    카테고리
+                                </label>
+                                <select
+                                    className="w-full rounded-md border border-zinc-300 px-4 py-2 text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    value={formData.category}
+                                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                                >
+                                    <option value="electronics">전기/전자 제품</option>
+                                    <option value="kids">어린이 용품</option>
+                                    <option value="cosmetics">화장품</option>
+                                    <option value="food">식품/건강기능식품</option>
+                                    <option value="household">생활화학제품</option>
+                                    <option value="other">기타</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="mb-2 block text-sm font-medium text-zinc-700">
+                                    제품 상세 설명
+                                </label>
+                                <textarea
+                                    required
+                                    rows={4}
+                                    className="w-full rounded-md border border-zinc-300 px-4 py-2 text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    placeholder="제품의 주요 기능, 사용 재질, 배터리 포함 여부 등을 자세히 적어주세요. (예: 3.7V 리튬이온 배터리가 내장된 스탠드형 선풍기입니다.)"
+                                    value={formData.description}
+                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                />
+                            </div>
                         </div>
 
-                        <div>
-                            <label className="mb-2 block text-sm font-medium text-zinc-700">
-                                카테고리
-                            </label>
-                            <select
-                                className="w-full rounded-md border border-zinc-300 px-4 py-2 text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                value={formData.category}
-                                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                        <div className="mt-8 flex justify-end">
+                            <button
+                                type="submit"
+                                className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white shadow-md hover:bg-blue-700 transition"
                             >
-                                <option value="electronics">전기/전자 제품</option>
-                                <option value="kids">어린이 용품</option>
-                                <option value="cosmetics">화장품</option>
-                                <option value="food">식품/건강기능식품</option>
-                                <option value="household">생활화학제품</option>
-                                <option value="other">기타</option>
-                            </select>
+                                <Search className="h-5 w-5" />
+                                진단 시작하기
+                            </button>
+                        </div>
+                    </motion.form>
+
+                    <div className="mt-16">
+                        <div className="flex items-center gap-2 mb-6">
+                            <History className="h-5 w-5 text-zinc-500" />
+                            <h2 className="text-xl font-bold text-zinc-900">최근 진단 이력</h2>
                         </div>
 
-                        <div>
-                            <label className="mb-2 block text-sm font-medium text-zinc-700">
-                                제품 상세 설명
-                            </label>
-                            <textarea
-                                required
-                                rows={4}
-                                className="w-full rounded-md border border-zinc-300 px-4 py-2 text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                placeholder="제품의 주요 기능, 사용 재질, 배터리 포함 여부 등을 자세히 적어주세요. (예: 3.7V 리튬이온 배터리가 내장된 스탠드형 선풍기입니다.)"
-                                value={formData.description}
-                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                            />
-                        </div>
+                        {history.length === 0 ? (
+                            <div className="rounded-lg border border-dashed border-zinc-300 p-8 text-center text-zinc-500">
+                                아직 진단 이력이 없습니다. 첫 진단을 시작해보세요!
+                            </div>
+                        ) : (
+                            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                                {history.map((item) => (
+                                    <motion.div
+                                        key={item.id}
+                                        whileHover={{ y: -2 }}
+                                        onClick={() => loadHistoryItem(item)}
+                                        className="cursor-pointer rounded-xl border bg-white p-5 shadow-sm hover:border-blue-500 hover:shadow-md transition-all"
+                                    >
+                                        <div className="flex justify-between items-start mb-2">
+                                            <span className="inline-block rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600">
+                                                {item.category}
+                                            </span>
+                                            <span className="text-xs text-zinc-400">
+                                                {new Date(item.created_at).toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                        <h3 className="font-bold text-zinc-900 line-clamp-1 mb-1">{item.product_name}</h3>
+                                        <p className="text-sm text-zinc-500 line-clamp-2 h-10">
+                                            {item.description}
+                                        </p>
+                                    </motion.div>
+                                ))}
+                            </div>
+                        )}
                     </div>
-
-                    <div className="mt-8 flex justify-end">
-                        <button
-                            type="submit"
-                            className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white shadow-md hover:bg-blue-700 transition"
-                        >
-                            <Search className="h-5 w-5" />
-                            진단 시작하기
-                        </button>
-                    </div>
-                </motion.form>
+                </>
             )}
 
             {step === "analyzing" && (

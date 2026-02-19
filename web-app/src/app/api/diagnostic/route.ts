@@ -2,6 +2,7 @@ import { OpenAI } from "openai";
 import { z } from "zod";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { NextResponse } from "next/server";
+import { createSupabaseClient } from "../../../lib/supabaseClient";
 
 export const runtime = "edge";
 
@@ -69,6 +70,24 @@ export async function POST(req: Request) {
         });
 
         const result = completion.choices[0].message.parsed;
+
+        // Save result to Supabase
+        const supabase = createSupabaseClient();
+        const { error: dbError } = await supabase
+            .from('diagnostic_results')
+            .insert([
+                {
+                    product_name: productName,
+                    category: category,
+                    description: description,
+                    result_json: result,
+                }
+            ]);
+
+        if (dbError) {
+            console.error("Supabase Save Error:", dbError);
+            // We don't fail the request, just log the error
+        }
 
         return NextResponse.json(result);
     } catch (error) {
