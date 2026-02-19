@@ -4,10 +4,12 @@ import { useState, useEffect } from "react";
 import {
     AlertCircle, CheckCircle, ChevronRight, FileText, Loader2, Search, Zap,
     Download, Clock, History, Trash2, Lock, Shield, Settings, Globe,
-    Scale, AlertTriangle, Printer, Cpu
+    Scale, AlertTriangle, Printer, Cpu, FileDown
 } from "lucide-react";
 import { createSupabaseClient } from "../../../lib/supabaseClient";
 import { motion } from "framer-motion";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 // --- Types ---
 
@@ -44,6 +46,19 @@ interface GeneratedDoc {
     content: string;
 }
 
+interface LabelResult {
+    product_name: string;
+    model_name: string;
+    capacity: string;
+    manufacturer: string;
+    country_of_origin: string;
+    manufacturing_date: string;
+    precautions: string;
+    kc_mark_guideline: string;
+    recycle_mark: string;
+    additional_info: string;
+}
+
 // --- Main Component ---
 
 export default function DiagnosticPage() {
@@ -72,7 +87,7 @@ export default function DiagnosticPage() {
         manufacturer: "",
         precautions: "",
     });
-    const [labelResult, setLabelResult] = useState<string | null>(null);
+    const [labelResult, setLabelResult] = useState<LabelResult | null>(null);
 
     useEffect(() => {
         loadHistory();
@@ -190,31 +205,83 @@ export default function DiagnosticPage() {
     };
 
     // --- Detailed Diagnostic Functionality (Label Maker) ---
+    // --- Detailed Diagnostic Functionality (Label Maker) ---
     const handleLabelSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setStep("analyzing"); // Reuse analyzing state
+        setStep("analyzing");
+        setError(null);
 
-        // Mock generation delay
-        setTimeout(() => {
-            setLabelResult(`
-                [제품 표시사항 (Labeling)]
+        try {
+            const supabase = createSupabaseClient();
+            const { data: { user } } = await supabase.auth.getUser();
 
-                1. 품명: ${labelFormData.productName}
-                2. 종류/모델: ${labelFormData.productType}
-                3. 용량/중량: ${labelFormData.weight}
-                4. 제조자/수입자: ${labelFormData.manufacturer}
-                5. 제조국: 대한민국
-                6. 제조연월: 별도표기
-                7. 사용상 주의사항: 
-                   - ${labelFormData.precautions || "직사광선을 피하고 서늘한 곳에 보관하십시오."}
-                   - 어린이의 손이 닿지 않는 곳에 보관하십시오.
-                
-                [KC 인증 마크 위치 권고]
-                - 제품 본체 후면 또는 포장 박스 우측 하단
-                - 최소 5mm x 5mm 크기 이상 권장
-            `);
-            setStep("result"); // Use a distinct result state for label maker ideally, but reusing for simplicity
-        }, 2000);
+            const response = await fetch("/api/diagnostic/label", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ...labelFormData, userId: user?.id }),
+            });
+
+            if (!response.ok) throw new Error("Failed to generate label");
+
+            const data: LabelResult = await response.json();
+            setLabelResult(data);
+            setStep("result");
+        } catch (err) {
+            console.error(err);
+            setError("라벨 생성 중 오류가 발생했습니다.");
+            setStep("result"); // Should ideally allow retry
+        }
+    };
+
+    const downloadLabelPDF = () => {
+        if (!labelResult) return;
+
+        const doc = new jsPDF();
+
+        // Add font support for Korean would be needed here in production.
+        // For now, we will use standard font and warn about encoding if needed, 
+        // OR ideally load a Korean font. 
+        // *Limitation*: jsPDF default fonts don't support Korean. 
+        // We will try to display English or basic content, but for real Korean support 
+        // we need to add a font file (e.g., NotoSansKR.ttf).
+        // Since I cannot upload a font file easily here, I will structure the PDF 
+        // but note that Korean characters might appear as broken without a custom font.
+        // To fix this in a real project: doc.addFont('path/to/font.ttf', 'MyFont', 'normal');
+
+        doc.setFontSize(18);
+        doc.text("Product Label Draft", 105, 20, { align: "center" });
+
+        doc.setFontSize(12);
+
+        const tableData = [
+            ["Product Name", labelResult.product_name],
+            ["Model / Type", labelResult.model_name],
+            ["Capacity / Weight", labelResult.capacity],
+            ["Manufacturer", labelResult.manufacturer],
+            ["Country of Origin", labelResult.country_of_origin],
+            ["Mfg Date Guide", labelResult.manufacturing_date],
+        ];
+
+        autoTable(doc, {
+            startY: 30,
+            head: [['Item', 'Content']],
+            body: tableData,
+            theme: 'grid',
+            headStyles: { fillColor: [79, 70, 229] }, // Indigo-600
+        });
+
+        const finalY = (doc as any).lastAutoTable.finalY + 10;
+
+        doc.setFontSize(11);
+        doc.text("Precautions:", 14, finalY);
+        const splitPrecautions = doc.splitTextToSize(labelResult.precautions, 180);
+        doc.text(splitPrecautions, 14, finalY + 7);
+
+        doc.text("KC Mark Guide:", 14, finalY + 30);
+        const splitKC = doc.splitTextToSize(labelResult.kc_mark_guideline, 180);
+        doc.text(splitKC, 14, finalY + 37);
+
+        doc.save(`${labelResult.product_name}_label_draft.pdf`);
     };
 
 
@@ -292,8 +359,8 @@ export default function DiagnosticPage() {
                         setMode("detailed");
                     }}
                     className={`group cursor-pointer relative overflow-hidden rounded-2xl border bg-white p-8 transition-all hover:-translate-y-1 ${userTier === 'pro'
-                            ? 'border-indigo-200 hover:border-indigo-500 hover:shadow-xl'
-                            : 'border-zinc-200 hover:border-zinc-300'
+                        ? 'border-indigo-200 hover:border-indigo-500 hover:shadow-xl'
+                        : 'border-zinc-200 hover:border-zinc-300'
                         }`}
                 >
                     <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -334,8 +401,8 @@ export default function DiagnosticPage() {
                             </li>
                         </ul>
                         <button className={`w-full py-3 rounded-xl font-bold transition-colors flex items-center justify-center gap-2 ${userTier === 'pro'
-                                ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                                : 'bg-zinc-100 text-zinc-400 cursor-not-allowed hover:bg-zinc-200'
+                            ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                            : 'bg-zinc-100 text-zinc-400 cursor-not-allowed hover:bg-zinc-200'
                             }`}>
                             상세 기능 살펴보기 <ChevronRight className="h-4 w-4" />
                         </button>
@@ -433,8 +500,8 @@ export default function DiagnosticPage() {
                         <div
                             key={idx}
                             className={`group relative rounded-xl border bg-white p-6 transition-all ${userTier === 'pro'
-                                    ? 'border-zinc-200 hover:border-indigo-500 hover:shadow-lg cursor-pointer'
-                                    : 'border-zinc-100 bg-zinc-50'
+                                ? 'border-zinc-200 hover:border-indigo-500 hover:shadow-lg cursor-pointer'
+                                : 'border-zinc-100 bg-zinc-50'
                                 }`}
                             onClick={() => {
                                 if (userTier === 'free') {
@@ -571,14 +638,57 @@ export default function DiagnosticPage() {
                                             >
                                                 다시 작성하기
                                             </button>
-                                            <button className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700">
+                                            <button
+                                                onClick={downloadLabelPDF}
+                                                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700"
+                                            >
                                                 <Download className="h-4 w-4" /> PDF 다운로드
                                             </button>
                                         </div>
                                     </div>
+                                    <div className="bg-zinc-50 p-6 rounded-lg border border-zinc-200 text-sm leading-relaxed space-y-4">
+                                        <div className="grid grid-cols-[120px_1fr] gap-2 border-b pb-4 border-zinc-200">
+                                            <span className="font-bold text-zinc-600">품명</span>
+                                            <span className="text-zinc-900">{labelResult.product_name}</span>
 
-                                    <div className="bg-zinc-50 p-6 rounded-lg border border-zinc-200 font-mono text-sm leading-relaxed whitespace-pre-wrap">
-                                        {labelResult}
+                                            <span className="font-bold text-zinc-600">종류/모델</span>
+                                            <span className="text-zinc-900">{labelResult.model_name}</span>
+
+                                            <span className="font-bold text-zinc-600">용량/중량</span>
+                                            <span className="text-zinc-900">{labelResult.capacity}</span>
+
+                                            <span className="font-bold text-zinc-600">제조/수입자</span>
+                                            <span className="text-zinc-900">{labelResult.manufacturer}</span>
+
+                                            <span className="font-bold text-zinc-600">제조국</span>
+                                            <span className="text-zinc-900">{labelResult.country_of_origin}</span>
+
+                                            <span className="font-bold text-zinc-600">제조연월</span>
+                                            <span className="text-zinc-900">{labelResult.manufacturing_date}</span>
+                                        </div>
+
+                                        <div>
+                                            <h4 className="font-bold text-zinc-900 mb-1">사용상 주의사항</h4>
+                                            <p className="text-zinc-600 whitespace-pre-wrap">{labelResult.precautions}</p>
+                                        </div>
+
+                                        <div className="grid md:grid-cols-2 gap-4 pt-2">
+                                            <div className="bg-white p-3 rounded border border-zinc-200">
+                                                <h4 className="font-bold text-zinc-900 mb-1 text-xs">KC 마크 표기 가이드</h4>
+                                                <p className="text-zinc-600 text-xs">{labelResult.kc_mark_guideline}</p>
+                                            </div>
+                                            <div className="bg-white p-3 rounded border border-zinc-200">
+                                                <h4 className="font-bold text-zinc-900 mb-1 text-xs">재활용 표기</h4>
+                                                <p className="text-zinc-600 text-xs">{labelResult.recycle_mark}</p>
+                                            </div>
+                                        </div>
+
+                                        {labelResult.additional_info && (
+                                            <div className="pt-2">
+                                                <h4 className="font-bold text-zinc-900 mb-1">기타 법적 표기</h4>
+                                                <p className="text-zinc-600">{labelResult.additional_info}</p>
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="mt-6 flex items-start gap-3 rounded-lg bg-amber-50 p-4 text-amber-800 text-sm">
@@ -586,6 +696,9 @@ export default function DiagnosticPage() {
                                         <p>
                                             이 결과물은 AI가 생성한 초안입니다. 실제 인쇄 전 반드시 관련 법령(표시광고법 등)을 확인하거나 전문가의 검수를 받으시기 바랍니다.
                                         </p>
+                                    </div>
+                                    <div className="mt-2 text-xs text-zinc-400 text-right">
+                                        * PDF 다운로드 시 한글 폰트가 지원되지 않을 수 있습니다. (데모 버전)
                                     </div>
                                 </motion.div>
                             )}
