@@ -91,6 +91,7 @@ export default function DiagnosticPage() {
     const [error, setError] = useState<string | null>(null);
     const [generatedDoc, setGeneratedDoc] = useState<GeneratedDoc | null>(null);
     const [generatingDocName, setGeneratingDocName] = useState<string>("");
+    const [currentId, setCurrentId] = useState<string | null>(null);
 
     // -- Detailed Diagnostic States --
     const [activeDetailedTool, setActiveDetailedTool] = useState<DetailedTool | null>(null);
@@ -168,6 +169,7 @@ export default function DiagnosticPage() {
             category: item.category,
             description: item.description || "",
         });
+        setCurrentId(item.id);
         setMode("general");
         setStep("result");
     };
@@ -181,6 +183,11 @@ export default function DiagnosticPage() {
             const { error } = await (supabase as any).from('diagnostic_results').delete().eq('id', id);
             if (error) throw error;
             setHistory(prev => prev.filter(item => item.id !== id));
+            if (currentId === id) {
+                setResult(null);
+                setStep("input");
+                setCurrentId(null);
+            }
         } catch (err) {
             console.error("Delete error", err);
             alert("삭제 중 오류가 발생했습니다.");
@@ -209,7 +216,7 @@ export default function DiagnosticPage() {
             const data: DiagnosticResult = await response.json();
             setResult(data);
             setStep("result");
-            loadHistory(); // Reload history to show the new item
+            // Note: We do NOT clear currentId here. If iterating on an existing diagnostics, we want to update it on save.
         } catch (err) {
             console.error(err);
             setError("분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
@@ -251,7 +258,6 @@ export default function DiagnosticPage() {
         }
     };
 
-    // --- Detailed Diagnostic Functionality (Label Maker) ---
     // --- Detailed Diagnostic Functionality (Label Maker) ---
     const handleLabelSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -319,18 +325,36 @@ export default function DiagnosticPage() {
                 return;
             }
 
-            const { error } = await (supabase as any).from('diagnostic_results').insert({
-                user_id: user.id,
-                product_name: formData.productName,
-                description: formData.description,
-                category: formData.category,
-                result_json: result,
-                tool_type: 'general'
-            });
+            if (currentId) {
+                // Update existing record
+                const { error } = await (supabase as any)
+                    .from('diagnostic_results')
+                    .update({
+                        product_name: formData.productName,
+                        description: formData.description,
+                        category: formData.category,
+                        result_json: result,
+                        // tool_type is usually static for general diagnostics
+                    })
+                    .eq('id', currentId);
 
-            if (error) throw error;
+                if (error) throw error;
+                alert("진단 결과가 성공적으로 업데이트되었습니다.");
+            } else {
+                // Insert new record
+                const { error } = await (supabase as any).from('diagnostic_results').insert({
+                    user_id: user.id,
+                    product_name: formData.productName,
+                    description: formData.description,
+                    category: formData.category,
+                    result_json: result,
+                    tool_type: 'general'
+                });
 
-            alert("성공적으로 저장되었습니다! \n전문가 상담 신청 페이지로 이동합니다. (준비 중)");
+                if (error) throw error;
+                alert("진단 결과가 성공적으로 저장되었습니다.");
+            }
+
             loadHistory(); // Refresh history
 
         } catch (e) {
@@ -473,7 +497,17 @@ export default function DiagnosticPage() {
             <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
                 {/* General Diagnostic Card */}
                 <div
-                    onClick={() => setMode("general")}
+                    onClick={() => {
+                        setMode("general");
+                        setCurrentId(null);
+                        setResult(null);
+                        setStep("input");
+                        setFormData({
+                            productName: "",
+                            category: "electronics",
+                            description: "",
+                        });
+                    }}
                     className="group cursor-pointer relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-8 transition-all hover:border-blue-500 hover:shadow-xl hover:-translate-y-1"
                 >
                     <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
