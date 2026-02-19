@@ -307,6 +307,38 @@ export default function DiagnosticPage() {
         }
     };
 
+    const handleSaveAndConsult = async () => {
+        if (!result) return;
+
+        try {
+            const supabase = createSupabaseClient();
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (!user) {
+                alert("로그인이 필요합니다.");
+                return;
+            }
+
+            const { error } = await supabase.from('diagnostic_results').insert({
+                user_id: user.id,
+                product_name: formData.productName,
+                description: formData.description,
+                category: formData.category,
+                result_data: result,
+                tool_type: 'general'
+            });
+
+            if (error) throw error;
+
+            alert("성공적으로 저장되었습니다! \n전문가 상담 신청 페이지로 이동합니다. (준비 중)");
+            loadHistory(); // Refresh history
+
+        } catch (e) {
+            console.error(e);
+            alert("저장 중 오류가 발생했습니다.");
+        }
+    };
+
     const downloadLabelPDF = async () => {
         if (!labelResult) return;
 
@@ -1275,7 +1307,10 @@ export default function DiagnosticPage() {
                                 >
                                     입력 수정 / 재진단
                                 </button>
-                                <button className="rounded-lg bg-blue-600 px-6 py-2 font-bold text-white shadow hover:bg-blue-700">
+                                <button
+                                    onClick={handleSaveAndConsult}
+                                    className="rounded-lg bg-blue-600 px-6 py-2 font-bold text-white shadow hover:bg-blue-700 transition-colors"
+                                >
                                     로드맵 저장 및 상담 신청
                                 </button>
                             </div>
