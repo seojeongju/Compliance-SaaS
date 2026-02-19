@@ -28,7 +28,7 @@ export default function DashboardLayout({
             setUserEmail(user.email || "User");
 
             // Fetch Role
-            const { data } = await supabase
+            const { data } = await (supabase as any)
                 .from('profiles')
                 .select('role')
                 .eq('id', user.id)
