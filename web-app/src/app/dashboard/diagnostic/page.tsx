@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AlertCircle, CheckCircle, ChevronRight, FileText, Loader2, Search, Zap, Download, Clock, History } from "lucide-react";
+import { AlertCircle, CheckCircle, ChevronRight, FileText, Loader2, Search, Zap, Download, Clock, History, Trash2 } from "lucide-react";
 import { createSupabaseClient } from "../../../lib/supabaseClient";
 import { motion } from "framer-motion";
 
@@ -80,6 +80,28 @@ export default function DiagnosticPage() {
             description: item.description || "",
         });
         setStep("result");
+    };
+
+    const deleteHistoryItem = async (e: React.MouseEvent, id: string) => {
+        e.stopPropagation(); // Prevent loading the item when clicking delete
+
+        if (!confirm('정말 이 진단 이력을 삭제하시겠습니까?')) return;
+
+        try {
+            const supabase = createSupabaseClient();
+            const { error } = await supabase
+                .from('diagnostic_results')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+
+            // UI update
+            setHistory(prev => prev.filter(item => item.id !== id));
+        } catch (err) {
+            console.error("Delete error", err);
+            alert("삭제 중 오류가 발생했습니다.");
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -244,15 +266,24 @@ export default function DiagnosticPage() {
                                         key={item.id}
                                         whileHover={{ y: -2 }}
                                         onClick={() => loadHistoryItem(item)}
-                                        className="cursor-pointer rounded-xl border bg-white p-5 shadow-sm hover:border-blue-500 hover:shadow-md transition-all"
+                                        className="relative cursor-pointer rounded-xl border bg-white p-5 shadow-sm hover:border-blue-500 hover:shadow-md transition-all group"
                                     >
                                         <div className="flex justify-between items-start mb-2">
                                             <span className="inline-block rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600">
                                                 {item.category}
                                             </span>
-                                            <span className="text-xs text-zinc-400">
-                                                {new Date(item.created_at).toLocaleDateString()}
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs text-zinc-400">
+                                                    {new Date(item.created_at).toLocaleDateString()}
+                                                </span>
+                                                <button
+                                                    onClick={(e) => deleteHistoryItem(e, item.id)}
+                                                    className="rounded p-1 text-zinc-300 hover:bg-red-50 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                                                    title="이력 삭제"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            </div>
                                         </div>
                                         <h3 className="font-bold text-zinc-900 line-clamp-1 mb-1">{item.product_name}</h3>
                                         <p className="text-sm text-zinc-500 line-clamp-2 h-10">
@@ -423,6 +454,15 @@ export default function DiagnosticPage() {
                             className="px-6 py-2 font-medium text-zinc-600 hover:text-zinc-900"
                         >
                             새로 진단하기
+                        </button>
+                        <button
+                            onClick={() => {
+                                setStep("input");
+                                // We keep the formData, just go back to input step to edit
+                            }}
+                            className="px-6 py-2 font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition"
+                        >
+                            입력 수정 / 재진단
                         </button>
                         <button className="rounded-lg bg-blue-600 px-6 py-2 font-bold text-white shadow hover:bg-blue-700">
                             로드맵 저장 및 상담 신청
