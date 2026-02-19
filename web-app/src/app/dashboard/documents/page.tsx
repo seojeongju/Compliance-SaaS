@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createSupabaseClient } from "../../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
-import { FileText, Download, Copy, X, Loader2, Calendar, FileType, Zap, CheckCircle, ChevronRight, AlertCircle, Trash2, RefreshCw } from "lucide-react";
+import { FileText, Download, Copy, X, Loader2, Calendar, FileType, Zap, CheckCircle, ChevronRight, AlertCircle, Trash2, RefreshCw, Building2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 // --- Types ---
@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from "framer-motion";
 interface GeneratedDocument {
     type: 'document';
     id: string;
+    diagnostic_id: string | null;
     title: string;
     doc_type: string;
     content: string;
@@ -27,12 +28,19 @@ interface DiagnosticResultItem {
     created_at: string;
 }
 
+interface GroupedItem {
+    subject: string;
+    items: CombinedItem[];
+    latest_at: string;
+}
+
 type CombinedItem = GeneratedDocument | DiagnosticResultItem;
 
 export default function DocumentsPage() {
     const router = useRouter();
-    const [items, setItems] = useState<CombinedItem[]>([]);
+    const [groupedItems, setGroupedItems] = useState<GroupedItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const [selectedGroup, setSelectedGroup] = useState<GroupedItem | null>(null);
     const [selectedItem, setSelectedItem] = useState<CombinedItem | null>(null);
     const [copySuccess, setCopySuccess] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -46,15 +54,7 @@ export default function DocumentsPage() {
             setLoading(true);
             const supabase = createSupabaseClient();
 
-            // 1. Fetch Generated Documents
-            const { data: documents, error: docError } = await (supabase as any)
-                .from("documents")
-                .select("*")
-                .order("created_at", { ascending: false });
-
-            if (docError) console.error("Error fetching documents:", docError);
-
-            // 2. Fetch Diagnostic Results
+            // 1. Fetch Diagnostic Results First (to use as grouping labels)
             const { data: diagnostics, error: diagError } = await (supabase as any)
                 .from("diagnostic_results")
                 .select("*")
@@ -62,26 +62,32 @@ export default function DocumentsPage() {
 
             if (diagError) console.error("Error fetching diagnostics:", diagError);
 
-            // 3. Combine and Normalize
-            const combined: CombinedItem[] = [];
+            // 2. Fetch Generated Documents
+            const { data: documents, error: docError } = await (supabase as any)
+                .from("documents")
+                .select("*")
+                .order("created_at", { ascending: false });
 
-            if (documents) {
-                documents.forEach((doc: any) => {
-                    combined.push({
-                        type: 'document',
-                        id: doc.id,
-                        title: doc.title,
-                        doc_type: doc.doc_type,
-                        content: doc.content,
-                        created_at: doc.created_at,
-                        status: doc.status
-                    });
-                });
+            if (docError) console.error("Error fetching documents:", docError);
+
+            // 3. Create Lookup for Diagnostics
+            const diagMap = new Map<string, string>();
+            if (diagnostics) {
+                diagnostics.forEach((d: any) => diagMap.set(d.id, d.product_name));
             }
+
+            const groups: { [key: string]: CombinedItem[] } = {};
+
+            // Helper to add to groups
+            const addToGroup = (subject: string, item: CombinedItem) => {
+                const cleanSubject = subject || "미분류 항목";
+                if (!groups[cleanSubject]) groups[cleanSubject] = [];
+                groups[cleanSubject].push(item);
+            };
 
             if (diagnostics) {
                 diagnostics.forEach((diag: any) => {
-                    combined.push({
+                    addToGroup(diag.product_name, {
                         type: 'diagnostic',
                         id: diag.id,
                         product_name: diag.product_name,
@@ -92,10 +98,43 @@ export default function DocumentsPage() {
                 });
             }
 
-            // Sort by created_at desc
-            combined.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+            if (documents) {
+                documents.forEach((doc: any) => {
+                    // Try to link to a diagnostic's product name
+                    let subject = "";
+                    if (doc.diagnostic_id && diagMap.has(doc.diagnostic_id)) {
+                        subject = diagMap.get(doc.diagnostic_id)!;
+                    } else {
+                        // Guess from title or just use title
+                        // For display, use the document title as standalone subject if not linked
+                        subject = doc.title.split(' ').slice(0, 2).join(' '); // Tentative simple matching
+                    }
 
-            setItems(combined);
+                    addToGroup(subject, {
+                        type: 'document',
+                        id: doc.id,
+                        diagnostic_id: doc.diagnostic_id,
+                        title: doc.title,
+                        doc_type: doc.doc_type,
+                        content: doc.content,
+                        created_at: doc.created_at,
+                        status: doc.status
+                    });
+                });
+            }
+
+            // Convert to array and sort groups by latest item's date
+            const groupedList: GroupedItem[] = Object.keys(groups).map(subject => ({
+                subject,
+                items: groups[subject].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+                latest_at: groups[subject].reduce((max, item) =>
+                    new Date(item.created_at).getTime() > new Date(max).getTime() ? item.created_at : max,
+                    groups[subject][0].created_at)
+            }));
+
+            groupedList.sort((a, b) => new Date(b.latest_at).getTime() - new Date(a.latest_at).getTime());
+
+            setGroupedItems(groupedList);
 
         } catch (error) {
             console.error("Unexpected error:", error);
@@ -163,7 +202,19 @@ export default function DocumentsPage() {
 
             if (error) throw error;
 
-            setItems(prev => prev.filter(i => i.id !== selectedItem.id));
+            // Remove from local state
+            if (selectedGroup) {
+                const updatedItems = selectedGroup.items.filter(i => i.id !== selectedItem.id);
+                if (updatedItems.length === 0) {
+                    setGroupedItems(prev => prev.filter(g => g.subject !== selectedGroup.subject));
+                    setSelectedGroup(null);
+                } else {
+                    const updatedGroup = { ...selectedGroup, items: updatedItems };
+                    setSelectedGroup(updatedGroup);
+                    setGroupedItems(prev => prev.map(g => g.subject === selectedGroup.subject ? updatedGroup : g));
+                }
+            }
+
             setSelectedItem(null);
             alert("정상적으로 삭제되었습니다.");
         } catch (err) {
@@ -311,7 +362,7 @@ export default function DocumentsPage() {
                 <div className="flex h-64 items-center justify-center">
                     <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
                 </div>
-            ) : items.length === 0 ? (
+            ) : groupedItems.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-zinc-200 bg-zinc-50 p-12 text-center">
                     <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 mb-4">
                         <FileText className="h-6 w-6 text-zinc-400" />
@@ -323,73 +374,94 @@ export default function DocumentsPage() {
                 </div>
             ) : (
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                    {items.map((item) => (
+                    {groupedItems.map((group) => (
                         <motion.div
-                            key={item.id}
+                            key={group.subject}
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             whileHover={{ y: -4 }}
-                            className={`group relative cursor-pointer overflow-hidden rounded-xl border p-6 shadow-sm transition-all hover:shadow-md 
-                                ${item.type === 'diagnostic' ? 'bg-indigo-50/30 border-indigo-100 hover:border-indigo-300' : 'bg-white border-zinc-200 hover:border-blue-200'}
-                            `}
-                            onClick={() => setSelectedItem(item)}
+                            className="group relative cursor-pointer overflow-hidden rounded-xl border border-zinc-200 bg-white p-6 shadow-sm transition-all hover:shadow-md hover:border-blue-300"
+                            onClick={() => setSelectedGroup(group)}
                         >
                             <div className="mb-4 flex items-start justify-between">
-                                <div className={`rounded-lg p-3 transition-colors ${item.type === 'diagnostic'
-                                    ? 'bg-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white'
-                                    : 'bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white'
-                                    }`}>
-                                    {item.type === 'diagnostic' ? <Zap className="h-6 w-6" /> : <FileText className="h-6 w-6" />}
+                                <div className="rounded-lg p-3 bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                    <Building2 className="h-6 w-6" />
                                 </div>
                                 <div className="flex flex-col items-end gap-2">
-                                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium 
-                                        ${item.type === 'diagnostic' ? 'bg-indigo-100 text-indigo-800' : 'bg-zinc-100 text-zinc-800'}
-                                    `}>
-                                        {item.type === 'diagnostic' ? '진단 리포트' : '문서 초안'}
+                                    <span className="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-800">
+                                        기록 {group.items.length}건
                                     </span>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            // Set the item as selected temporarily for the delete handler, 
-                                            // or just write a small inline delete
-                                            const confirmDelete = async () => {
-                                                if (!confirm("정말 이 항목을 삭제하시겠습니까?")) return;
-                                                try {
-                                                    const supabase = createSupabaseClient();
-                                                    const table = item.type === 'document' ? 'documents' : 'diagnostic_results';
-                                                    const { error } = await (supabase as any).from(table).delete().eq('id', item.id);
-                                                    if (error) throw error;
-                                                    setItems(prev => prev.filter(i => i.id !== item.id));
-                                                } catch (err) {
-                                                    console.error(err);
-                                                    alert("삭제 실패");
-                                                }
-                                            };
-                                            confirmDelete();
-                                        }}
-                                        className="p-1.5 rounded-md text-zinc-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </button>
                                 </div>
                             </div>
-                            <h3 className="mb-2 text-lg font-bold text-zinc-900 line-clamp-1 group-hover:text-blue-600 transition-colors">
-                                {item.type === 'document' ? item.title : item.product_name}
+                            <h3 className="mb-2 text-lg font-bold text-zinc-900 group-hover:text-blue-600 transition-colors">
+                                {group.subject}
                             </h3>
-                            <div className="flex items-center gap-4 text-xs text-zinc-500 mt-4 border-t pt-4">
-                                <span className="flex items-center gap-1">
-                                    <FileType className="h-3 w-3" />
-                                    {item.type === 'document' ? item.doc_type : '규제 진단'}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                    <Calendar className="h-3 w-3" />
-                                    {formatDate(item.created_at)}
-                                </span>
+                            <p className="text-sm text-zinc-500 line-clamp-1 mb-4">
+                                {group.items[0].type === 'diagnostic' ? group.items[0].product_name : group.items[0].title} 외...
+                            </p>
+                            <div className="flex items-center gap-2 text-xs text-zinc-400 mt-4 border-t pt-4">
+                                <Calendar className="h-3 w-3" />
+                                <span>최근 업데이트: {formatDate(group.latest_at)}</span>
                             </div>
                         </motion.div>
                     ))}
                 </div>
             )}
+
+            {/* Group Detail Modal (History List) */}
+            <AnimatePresence>
+                {selectedGroup && !selectedItem && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                            onClick={() => setSelectedGroup(null)}
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="relative flex h-[70vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+                        >
+                            <div className="flex items-center justify-between border-b px-6 py-4 bg-zinc-50">
+                                <div>
+                                    <h2 className="text-xl font-bold text-zinc-900">{selectedGroup.subject} 이력</h2>
+                                    <p className="text-sm text-zinc-500">생성된 진단 리포트 및 문서를 확인하세요.</p>
+                                </div>
+                                <button onClick={() => setSelectedGroup(null)} className="rounded-full p-2 hover:bg-zinc-200">
+                                    <X className="h-6 w-6" />
+                                </button>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                                {selectedGroup.items.map((item) => (
+                                    <div
+                                        key={item.id}
+                                        onClick={() => setSelectedItem(item)}
+                                        className="flex items-center justify-between p-4 rounded-xl border border-zinc-100 bg-zinc-50 hover:border-blue-300 hover:bg-white cursor-pointer transition-all group"
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className={`p-2 rounded-lg ${item.type === 'diagnostic' ? 'bg-indigo-100 text-indigo-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                {item.type === 'diagnostic' ? <Zap className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
+                                            </div>
+                                            <div>
+                                                <h4 className="font-bold text-zinc-900 group-hover:text-blue-600 transition-colors">
+                                                    {item.type === 'diagnostic' ? '규제 진단 리포트' : item.title}
+                                                </h4>
+                                                <p className="text-xs text-zinc-500 mt-1 flex items-center gap-2">
+                                                    <Calendar className="h-3 w-3" /> {formatDate(item.created_at)}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <ChevronRight className="h-5 w-5 text-zinc-300 group-hover:text-blue-500 transition-colors" />
+                                    </div>
+                                ))}
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
 
             {/* Item Detail Modal */}
             <AnimatePresence>

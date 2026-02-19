@@ -263,6 +263,7 @@ export default function DiagnosticPage() {
                     category: formData.category,
                     description: formData.description,
                     documentType: docType,
+                    diagnosticId: currentId, // Pass the link IF it exists
                 }),
             });
 

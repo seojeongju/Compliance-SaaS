@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     });
 
     try {
-        const { productName, category, description, documentType } = await req.json();
+        const { productName, category, description, documentType, diagnosticId } = await req.json();
 
         if (!productName || !category || !description || !documentType) {
             return NextResponse.json(
@@ -31,6 +31,13 @@ export async function POST(req: Request) {
                 { status: 400 }
             );
         }
+
+        const supabase = createSupabaseClient();
+
+        // Get user session to save correctly
+        // Note: In Edge runtime, auth.getUser() works if headers/cookies are passed, 
+        // but since we call it from the same origin, it should work.
+        const { data: { user } } = await supabase.auth.getUser();
 
         const prompt = `
     You are a professional regulatory compliance consultant for Korean startups.
@@ -62,21 +69,22 @@ export async function POST(req: Request) {
                 { role: "system", content: "You are a helpful compliance assistant for Korean startups." },
                 { role: "user", content: prompt },
             ],
-            response_format: { type: "json_object" }, // json_schema isn't fully supported in all SDK versions yet for parse, but we try structured output
+            response_format: { type: "json_object" },
         });
 
         // Clean up the response content to ensure it is valid JSON
-        const content = completion.choices[0].message.content;
-        if (!content) throw new Error("No content generated");
+        const aiContent = completion.choices[0].message.content;
+        if (!aiContent) throw new Error("No content generated");
 
-        const parsedData = JSON.parse(content);
+        const parsedData = JSON.parse(aiContent);
 
         // Save result to Supabase
-        const supabase = createSupabaseClient();
         const { error: dbError } = await (supabase as any)
             .from('documents')
             .insert([
                 {
+                    user_id: user?.id || null, // Associate with user if logged in
+                    diagnostic_id: diagnosticId || null, // Link to diagnostic if provided
                     title: parsedData.title,
                     doc_type: documentType,
                     content: parsedData.content,
