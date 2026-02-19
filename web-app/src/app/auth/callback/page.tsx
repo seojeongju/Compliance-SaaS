@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseClient } from "../../../lib/supabaseClient";
 import { Loader2 } from "lucide-react";
 
-export default function AuthCallbackPage() {
+function AuthCallbackContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [message, setMessage] = useState("로그인 처리 중입니다...");
@@ -55,5 +55,17 @@ export default function AuthCallbackPage() {
             <Loader2 className="mb-4 h-8 w-8 animate-spin text-blue-600" />
             <p className="text-zinc-600 font-medium">{message}</p>
         </div>
+    );
+}
+
+export default function AuthCallbackPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex min-h-screen items-center justify-center bg-zinc-50">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            </div>
+        }>
+            <AuthCallbackContent />
+        </Suspense>
     );
 }
