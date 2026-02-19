@@ -114,7 +114,29 @@ export default function DiagnosticPage() {
 
     useEffect(() => {
         loadHistory();
+        loadUserTier();
     }, []);
+
+    async function loadUserTier() {
+        try {
+            const supabase = createSupabaseClient();
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (user) {
+                const { data } = await supabase
+                    .from('profiles')
+                    .select('tier')
+                    .eq('id', user.id)
+                    .single();
+
+                if (data) {
+                    setUserTier(data.tier as "free" | "pro");
+                }
+            }
+        } catch (e) {
+            console.error("Profile load error", e);
+        }
+    }
 
     async function loadHistory() {
         try {
