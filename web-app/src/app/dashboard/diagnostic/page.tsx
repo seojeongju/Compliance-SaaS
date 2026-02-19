@@ -52,12 +52,19 @@ export default function DiagnosticPage() {
         async function loadHistory() {
             try {
                 const supabase = createSupabaseClient();
-                const { data } = await supabase
-                    .from('diagnostic_results')
-                    .select('*')
-                    .order('created_at', { ascending: false })
-                    .limit(6);
-                if (data) setHistory(data);
+                const { data: { user } } = await supabase.auth.getUser();
+
+                if (user) {
+                    const { data } = await supabase
+                        .from('diagnostic_results')
+                        .select('*')
+                        .eq('user_id', user.id)
+                        .order('created_at', { ascending: false })
+                        .limit(6);
+                    if (data) setHistory(data);
+                } else {
+                    setHistory([]); // Guest user: No history
+                }
             } catch (e) {
                 console.error("History load error", e);
             }
@@ -81,10 +88,13 @@ export default function DiagnosticPage() {
         setError(null);
 
         try {
+            const supabase = createSupabaseClient();
+            const { data: { user } } = await supabase.auth.getUser();
+
             const response = await fetch("/api/diagnostic", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(formData),
+                body: JSON.stringify({ ...formData, userId: user?.id }),
             });
 
             if (!response.ok) {

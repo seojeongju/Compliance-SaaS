@@ -80,6 +80,7 @@ export async function POST(req: Request) {
                     product_name: productName,
                     category: category,
                     description: description,
+                    user_id: body.userId || null, // Save userId if provided
                     result_json: result,
                 }
             ]);
