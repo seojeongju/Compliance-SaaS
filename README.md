@@ -1,4 +1,6 @@
-# Compliance-SaaS (Certi-Mate)
+# Compliance-SaaS
+**Deployment Status**: Build resolved, retrying function publish.
+ (Certi-Mate)
 
 개인 창업자를 위한 AI 규제/인증 가이드 서비스입니다.
 
