@@ -73,7 +73,7 @@ export async function POST(req: Request) {
 
         // Save result to Supabase
         const supabase = createSupabaseClient();
-        const { error: dbError } = await supabase
+        const { error: dbError } = await (supabase as any)
             .from('documents')
             .insert([
                 {
