@@ -157,6 +157,35 @@ export default function AdminDashboard() {
         }
     };
 
+    const updateUserRole = async (userId: string, currentRole: string) => {
+        const newRole = currentRole === 'admin' ? 'user' : 'admin';
+
+        // Prevent changing own role for safety
+        if (currentUser?.id === userId) {
+            alert("자신의 관리자 권한은 스스로 해제할 수 없습니다.");
+            return;
+        }
+
+        if (!confirm(`사용자 권한을 ${newRole.toUpperCase()}로 변경하시겠습니까?`)) return;
+
+        try {
+            const supabase = createSupabaseClient();
+            const { error } = await supabase
+                .from("profiles")
+                .update({ role: newRole })
+                .eq("id", userId);
+
+            if (error) throw error;
+
+            // Update local state
+            setUsers(users.map(u => u.id === userId ? { ...u, role: newRole as "admin" | "user" } : u));
+            alert("사용자 권한이 변경되었습니다.");
+        } catch (err) {
+            console.error("Update error:", err);
+            alert("권한 변경 실패");
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-zinc-50">
@@ -304,6 +333,18 @@ export default function AdminDashboard() {
                                                             className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
                                                         >
                                                             {user.tier === 'free' ? 'Upgrade to Pro' : 'Downgrade'}
+                                                        </button>
+                                                    )}
+
+                                                    {currentUser?.id !== user.id && (
+                                                        <button
+                                                            onClick={() => updateUserRole(user.id, user.role)}
+                                                            className={`ml-3 text-xs font-medium hover:underline ${user.role === 'admin'
+                                                                    ? 'text-red-600 hover:text-red-800'
+                                                                    : 'text-zinc-500 hover:text-zinc-800'
+                                                                }`}
+                                                        >
+                                                            {user.role === 'admin' ? 'Revoke Admin' : 'Make Admin'}
                                                         </button>
                                                     )}
                                                 </td>
