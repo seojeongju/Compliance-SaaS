@@ -324,7 +324,7 @@ export default function DiagnosticPage() {
                 product_name: formData.productName,
                 description: formData.description,
                 category: formData.category,
-                result_data: result,
+                result_json: result,
                 tool_type: 'general'
             });
 
