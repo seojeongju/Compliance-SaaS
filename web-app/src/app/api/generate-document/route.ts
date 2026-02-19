@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { OpenAI } from "openai";
 
+export const runtime = "edge";
+
 // Define the response schema using Zod
 const DocumentSchema = z.object({
     title: z.string(),
