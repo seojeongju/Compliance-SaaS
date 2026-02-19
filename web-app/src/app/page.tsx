@@ -111,7 +111,7 @@ export default function Home() {
           </Link>
           <nav className="hidden md:flex gap-8 text-sm font-medium text-zinc-600">
             <Link href="#services" className="hover:text-blue-600 transition-colors">서비스</Link>
-            <Link href="#pricing" className="hover:text-blue-600 transition-colors">요금제</Link>
+            <Link href="/pricing" className="hover:text-blue-600 transition-colors">요금제</Link>
             <Link href="#contact" className="hover:text-blue-600 transition-colors">문의하기</Link>
           </nav>
           <div className="flex items-center gap-4">
@@ -312,7 +312,7 @@ export default function Home() {
               <h3 className="font-semibold text-zinc-900">제품</h3>
               <ul className="mt-4 space-y-2 text-sm text-zinc-500">
                 <li><Link href="#services" className="hover:text-blue-600">기능 소개</Link></li>
-                <li><Link href="#pricing" className="hover:text-blue-600">요금제</Link></li>
+                <li><Link href="/pricing" className="hover:text-blue-600">요금제</Link></li>
                 <li><Link href="#" className="hover:text-blue-600">업데이트</Link></li>
               </ul>
             </div>
