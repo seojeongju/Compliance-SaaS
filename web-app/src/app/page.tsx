@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Bot, CheckCircle, FileText, ShieldCheck, Zap, Globe, Lock, Loader2 } from "lucide-react";
+import { ArrowRight, Bot, CheckCircle, FileText, ShieldCheck, Zap, Globe, Lock, Loader2, Tag, Search, Printer, Scale, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { createSupabaseClient } from "../lib/supabaseClient";
@@ -32,6 +32,72 @@ export default function Home() {
     transition: { duration: 0.5 }
   };
 
+  const services = [
+    {
+      icon: <Search className="h-6 w-6 text-white" />,
+      color: "bg-blue-600 shadow-blue-200",
+      title: "아이템 인증 진단",
+      copy: "내 제품, 인증이 필요할까?",
+      desc: "키워드나 제품 사진만으로 필수 인증(KC, 전파법 등) 여부와 예상 비용을 1분 만에 진단합니다.",
+      tags: ["#초기창업", "#리스크체크"],
+      badge: "인기",
+      cta: "지금 진단하기",
+      link: "/dashboard/diagnostic"
+    },
+    {
+      icon: <FileText className="h-6 w-6 text-white" />,
+      color: "bg-indigo-600 shadow-indigo-200",
+      title: "스마트 서류 생성",
+      copy: "어려운 신청서, AI가 대신 써드려요",
+      desc: "제품 설명서, 사유서, 성분표 등 복잡한 공문서 초안을 표준 양식에 맞춰 자동 생성합니다.",
+      tags: ["#시간단축", "#자동작성"],
+      badge: "신규",
+      cta: "문서 만들기",
+      link: "/dashboard/diagnostic"
+    },
+    {
+      icon: <Printer className="h-6 w-6 text-white" />,
+      color: "bg-violet-600 shadow-violet-200",
+      title: "표시사항(라벨) 메이커",
+      copy: "법적 표시사항, 디자인까지 한 번에",
+      desc: "품목별 필수 기재 사항이 포함된 제품 라벨을 규격에 맞춰 생성하고 즉시 출력 가능한 파일을 제공합니다.",
+      tags: ["#라벨링", "#완제품준비"],
+      cta: "라벨 생성하기",
+      link: "/dashboard" // Placeholder
+    },
+    {
+      icon: <Scale className="h-6 w-6 text-white" />,
+      color: "bg-rose-500 shadow-rose-200",
+      title: "저작권·상표권 검사",
+      copy: "침해 걱정 없는 안전한 판매",
+      desc: "3D 모델링이나 브랜드 로고가 기존 저작권이나 상표권을 침해하는지 AI로 대조 분석합니다.",
+      tags: ["#지식재산권", "#안전판매"],
+      cta: "권리 분석하기",
+      link: "/dashboard" // Placeholder
+    },
+    {
+      icon: <Globe className="h-6 w-6 text-white" />,
+      color: "bg-teal-500 shadow-teal-200",
+      title: "수출 인증 로드맵",
+      copy: "글로벌 시장 진출을 위한 첫걸음",
+      desc: "미국 FDA, 유럽 CE 등 진출 국가별 필수 규제와 인증 절차를 단계별 가이드로 제공합니다.",
+      tags: ["#해외수출", "#글로벌규제"],
+      badge: "추천",
+      cta: "로드맵 보기",
+      link: "/dashboard" // Placeholder
+    },
+    {
+      icon: <MapPin className="h-6 w-6 text-white" />,
+      color: "bg-amber-500 shadow-amber-200",
+      title: "정부지원사업 매칭",
+      copy: "인증 비용, 나라에서 지원받으세요",
+      desc: "현재 신청 가능한 인증 비용 지원금과 바우처 정보를 내 사업장 위치와 품목에 맞춰 추천합니다.",
+      tags: ["#비용절감", "#정부지원금"],
+      cta: "지원금 찾기",
+      link: "/dashboard" // Placeholder
+    },
+  ];
+
   return (
     <div className="flex min-h-screen flex-col bg-white text-zinc-900 selection:bg-blue-100 selection:text-blue-900">
       {/* Header */}
@@ -44,9 +110,9 @@ export default function Home() {
             <span>Certi-Mate</span>
           </Link>
           <nav className="hidden md:flex gap-8 text-sm font-medium text-zinc-600">
-            <Link href="#features" className="hover:text-blue-600 transition-colors">기능 소개</Link>
-            <Link href="#how-it-works" className="hover:text-blue-600 transition-colors">이용 방법</Link>
+            <Link href="#services" className="hover:text-blue-600 transition-colors">서비스</Link>
             <Link href="#pricing" className="hover:text-blue-600 transition-colors">요금제</Link>
+            <Link href="#contact" className="hover:text-blue-600 transition-colors">문의하기</Link>
           </nav>
           <div className="flex items-center gap-4">
             {loading ? (
@@ -130,106 +196,57 @@ export default function Home() {
                 </div>
               </div>
             </motion.div>
-
-            {/* Abstract Dashboard Visual */}
-            <motion.div
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.6 }}
-              className="mt-20 -mb-24 flow-root sm:mt-24"
-            >
-              <div className="relative mx-auto max-w-5xl rounded-2xl border border-zinc-200 bg-zinc-50/50 p-2 shadow-2xl backdrop-blur-xl lg:rounded-3xl lg:p-4">
-                <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm overflow-hidden lg:rounded-2xl">
-                  <div className="flex items-center justify-between border-b pb-4 mb-4">
-                    <div className="flex gap-2">
-                      <div className="h-3 w-3 rounded-full bg-red-400"></div>
-                      <div className="h-3 w-3 rounded-full bg-yellow-400"></div>
-                      <div className="h-3 w-3 rounded-full bg-green-400"></div>
-                    </div>
-                    <div className="h-4 w-32 rounded bg-zinc-100"></div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-6">
-                    <div className="col-span-2 space-y-4">
-                      <div className="h-32 rounded-lg bg-blue-50/50 p-4 border border-blue-100 flex items-center justify-center">
-                        <span className="text-blue-600 font-medium text-lg">AI 규제 진단 리포트 생성 중...</span>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="h-4 w-3/4 rounded bg-zinc-100"></div>
-                        <div className="h-4 w-1/2 rounded bg-zinc-100"></div>
-                      </div>
-                    </div>
-                    <div className="space-y-4">
-                      <div className="h-20 rounded-lg bg-zinc-50 border border-zinc-100"></div>
-                      <div className="h-20 rounded-lg bg-zinc-50 border border-zinc-100"></div>
-                      <div className="h-20 rounded-lg bg-zinc-50 border border-zinc-100"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
           </div>
         </section>
 
-        {/* Feature Grid */}
-        <section id="features" className="bg-zinc-50 py-24 sm:py-32">
+        {/* Feature Grid (Services) */}
+        <section id="services" className="bg-zinc-50 py-24 sm:py-32">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-16 text-center max-w-2xl mx-auto">
-              <h2 className="text-lg font-semibold text-blue-600">핵심 기능</h2>
+              <h2 className="text-lg font-semibold text-blue-600">제공 서비스</h2>
               <h3 className="mt-2 text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl">
-                규제 해결을 위한 올인원 솔루션
+                1인 창업자와 소규모 제조사를 위한<br className="hidden sm:inline" /> 맞춤형 솔루션
               </h3>
               <p className="mt-4 text-zinc-600">
-                초기 창업자가 겪는 복잡하고 어려운 인증 과정, Certi-Mate가 쉽고 빠르게 해결해 드립니다.
+                아이템 기획부터 수출까지, 단계별로 필요한 규제 해결 서비스를 선택해보세요.
               </p>
             </div>
 
             <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-              {[
-                {
-                  icon: <Bot className="h-6 w-6 text-white" />,
-                  color: "bg-blue-600",
-                  title: "AI 아이템 진단",
-                  desc: "제품 정보만 입력하면 AI가 관련 법령을 3분 안에 분석해, 받아야 할 인증을 정확히 알려드립니다."
-                },
-                {
-                  icon: <ShieldCheck className="h-6 w-6 text-white" />,
-                  color: "bg-indigo-600",
-                  title: "위험성 사전 평가",
-                  desc: "리콜 사례와 규제 데이터를 기반으로 제품의 잠재적 위험 요소를 사전에 감지하고 대비책을 제안합니다."
-                },
-                {
-                  icon: <FileText className="h-6 w-6 text-white" />,
-                  color: "bg-violet-600",
-                  title: "서류 자동 작성",
-                  desc: "복잡한 관공서 신고서, 시험 신청서 등의 초안을 AI가 90% 이상 완성된 상태로 생성해 드립니다."
-                },
-                {
-                  icon: <Zap className="h-6 w-6 text-white" />,
-                  color: "bg-amber-500",
-                  title: "실시간 비용/기간 산출",
-                  desc: "인증 획득까지 걸리는 예상 기간과 소요 비용을 미리 파악하여 예산 계획을 세울 수 있습니다."
-                },
-                {
-                  icon: <Globe className="h-6 w-6 text-white" />,
-                  color: "bg-teal-500",
-                  title: "해외 규제 대응",
-                  desc: "국내뿐만 아니라 미국 FDA, 유럽 CE 등 해외 수출에 필요한 규제 사항도 한 번에 확인할 수 있습니다."
-                },
-                {
-                  icon: <Lock className="h-6 w-6 text-white" />,
-                  color: "bg-rose-500",
-                  title: "규제 모니터링",
-                  desc: "관련 법안이 변경되면 알림을 받아볼 수 있어, 사업 운영 중 발생할 수 있는 리스크를 최소화합니다."
-                },
-              ].map((feature, idx) => (
-                <div key={idx} className="group relative rounded-2xl bg-white p-8 shadow-sm transition-all hover:-translate-y-1 hover:shadow-md border border-zinc-100">
-                  <div className={`mb-6 inline-flex h-12 w-12 items-center justify-center rounded-xl ${feature.color} shadow-lg shadow-opacity-20`}>
-                    {feature.icon}
+              {services.map((service, idx) => (
+                <div key={idx} className="group relative flex flex-col justify-between rounded-2xl bg-white p-8 shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl border border-zinc-100 overflow-hidden">
+                  {service.badge && (
+                    <div className="absolute right-4 top-4 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-600">
+                      {service.badge}
+                    </div>
+                  )}
+
+                  <div>
+                    <div className={`mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl ${service.color} shadow-lg`}>
+                      {service.icon}
+                    </div>
+
+                    <div className="mb-2">
+                      <h4 className="font-semibold text-blue-600 text-sm mb-1">{service.copy}</h4>
+                      <h3 className="text-xl font-bold text-zinc-900 group-hover:text-blue-600 transition-colors">{service.title}</h3>
+                    </div>
+
+                    <p className="text-zinc-500 text-sm leading-relaxed mb-6">
+                      {service.desc}
+                    </p>
+
+                    <div className="flex flex-wrap gap-2 mb-8">
+                      {service.tags.map((tag, i) => (
+                        <span key={i} className="inline-flex items-center rounded-md bg-zinc-50 px-2 py-1 text-xs font-medium text-zinc-500 ring-1 ring-inset ring-zinc-500/10">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                  <h3 className="mb-3 text-xl font-bold text-zinc-900 group-hover:text-blue-600 transition-colors">{feature.title}</h3>
-                  <p className="text-zinc-600 leading-relaxed">
-                    {feature.desc}
-                  </p>
+
+                  <Link href={service.link} className="mt-auto w-full rounded-xl bg-zinc-900 px-4 py-3 text-center text-sm font-semibold text-white transition-all hover:bg-zinc-800 hover:scale-[1.02] active:scale-[0.98]">
+                    {service.cta}
+                  </Link>
                 </div>
               ))}
             </div>
@@ -238,6 +255,7 @@ export default function Home() {
 
         {/* CTA Section */}
         <section className="relative overflow-hidden bg-zinc-900 py-24 text-white sm:py-32">
+          {/* ... (Existing CTA Section remains unchanged) ... */}
           <div className="absolute inset-x-0 top-0 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-80">
             <div className="relative left-[calc(50%-11rem)] aspect-[1155/678] w-[36.125rem] -translate-x-1/2 rotate-[30deg] bg-gradient-to-tr from-blue-500 to-indigo-500 opacity-20 sm:left-[calc(50%-30rem)] sm:w-[72.1875rem]" />
           </div>
@@ -288,8 +306,8 @@ export default function Home() {
             <div>
               <h3 className="font-semibold text-zinc-900">제품</h3>
               <ul className="mt-4 space-y-2 text-sm text-zinc-500">
-                <li><Link href="#" className="hover:text-blue-600">기능 소개</Link></li>
-                <li><Link href="#" className="hover:text-blue-600">요금제</Link></li>
+                <li><Link href="#services" className="hover:text-blue-600">기능 소개</Link></li>
+                <li><Link href="#pricing" className="hover:text-blue-600">요금제</Link></li>
                 <li><Link href="#" className="hover:text-blue-600">업데이트</Link></li>
               </ul>
             </div>
