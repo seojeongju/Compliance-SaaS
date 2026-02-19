@@ -17,7 +17,7 @@ type Mode = "hub" | "general" | "detailed";
 type GeneralStep = "input" | "analyzing" | "result" | "generating_doc" | "doc_result";
 
 // Detailed Diagnostic Tool Types
-type DetailedTool = "deep_scan" | "risk_assessment" | "smart_doc" | "label_maker" | "ip_check" | "global_roadmap";
+type DetailedTool = "deep_scan" | "risk_assessment" | "smart_doc" | "label_maker" | "ip_check" | "global_roadmap" | "global" | "risk";
 
 interface Certification {
     name: string;
