@@ -217,6 +217,7 @@ export default function DocumentsPage() {
 
             setSelectedItem(null);
             alert("정상적으로 삭제되었습니다.");
+            fetchData(); // Force refresh from server to confirm deletion
         } catch (err) {
             console.error("Delete error:", err);
             alert("삭제 중 오류가 발생했습니다.");
