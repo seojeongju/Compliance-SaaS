@@ -38,9 +38,9 @@ export default function DashboardPage() {
                 });
 
                 // Fetch recent diagnostics
-                const { data: recent } = await supabase
+                const { data: recent } = await (supabase as any)
                     .from('diagnostic_results')
-                    .select('id, product_name, created_at, category, probability_score, result_json')
+                    .select('id, product_name, created_at, category, result_json')
                     .eq('user_id', user.id)
                     .order('created_at', { ascending: false })
                     .limit(3);
