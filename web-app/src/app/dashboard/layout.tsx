@@ -12,6 +12,7 @@ export default function DashboardLayout({
     children: React.ReactNode;
 }) {
     const [userEmail, setUserEmail] = useState<string | null>(null);
+    const [userRole, setUserRole] = useState<"admin" | "user" | null>(null);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
     const pathname = usePathname();
@@ -25,8 +26,20 @@ export default function DashboardLayout({
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
             setUserEmail(user.email || "User");
+
+            // Fetch Role
+            const { data } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', user.id)
+                .single();
+
+            if (data) {
+                setUserRole(data.role as "admin" | "user");
+            }
         } else {
             setUserEmail(null);
+            setUserRole(null);
         }
         setLoading(false);
     };
@@ -35,6 +48,7 @@ export default function DashboardLayout({
         const supabase = createSupabaseClient();
         await supabase.auth.signOut();
         setUserEmail(null);
+        setUserRole(null);
         router.refresh();
         router.push("/login");
     };
@@ -65,8 +79,8 @@ export default function DashboardLayout({
                                 key={item.href}
                                 href={item.href}
                                 className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-colors ${isActive
-                                        ? "bg-blue-50 text-blue-600 font-medium"
-                                        : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                                    ? "bg-blue-50 text-blue-600 font-medium"
+                                    : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
                                     }`}
                             >
                                 <item.icon className="h-5 w-5" />
@@ -74,6 +88,22 @@ export default function DashboardLayout({
                             </Link>
                         );
                     })}
+
+                    {/* Admin Link - Only visible to admins */}
+                    {userRole === 'admin' && (
+                        <>
+                            <div className="my-2 border-t border-zinc-100 mx-3"></div>
+                            <Link
+                                href="/admin/dashboard"
+                                className="flex items-center gap-3 rounded-lg px-3 py-2 text-zinc-600 hover:bg-zinc-900 hover:text-white transition-all group"
+                            >
+                                <div className="p-0.5 bg-zinc-100 rounded group-hover:bg-zinc-800">
+                                    <ShieldCheck className="h-4 w-4" />
+                                </div>
+                                <span className="font-bold">관리자 페이지</span>
+                            </Link>
+                        </>
+                    )}
                 </nav>
 
                 {/* User Profile Section */}
