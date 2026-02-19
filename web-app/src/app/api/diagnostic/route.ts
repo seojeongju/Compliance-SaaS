@@ -3,10 +3,6 @@ import { z } from "zod";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { NextResponse } from "next/server";
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
-
 // Define the structure of the AI response using Zod
 const CertificationSchema = z.object({
     name: z.string().describe("Name of the certification or regulation (e.g., KC Broadcast Equipment Registration)"),
