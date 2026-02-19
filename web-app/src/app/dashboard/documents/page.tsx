@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createSupabaseClient } from "../../../lib/supabaseClient";
-import { FileText, Download, Copy, X, Loader2, Calendar, FileType, Zap, CheckCircle, ChevronRight, AlertCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { FileText, Download, Copy, X, Loader2, Calendar, FileType, Zap, CheckCircle, ChevronRight, AlertCircle, Trash2, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 // --- Types ---
@@ -29,10 +30,12 @@ interface DiagnosticResultItem {
 type CombinedItem = GeneratedDocument | DiagnosticResultItem;
 
 export default function DocumentsPage() {
+    const router = useRouter();
     const [items, setItems] = useState<CombinedItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedItem, setSelectedItem] = useState<CombinedItem | null>(null);
     const [copySuccess, setCopySuccess] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -142,6 +145,38 @@ export default function DocumentsPage() {
         document.body.appendChild(element);
         element.click();
         document.body.removeChild(element);
+    };
+
+    const handleDelete = async () => {
+        if (!selectedItem) return;
+        if (!confirm("정말 이 항목을 삭제하시겠습니까?")) return;
+
+        try {
+            setIsDeleting(true);
+            const supabase = createSupabaseClient();
+            const table = selectedItem.type === 'document' ? 'documents' : 'diagnostic_results';
+
+            const { error } = await (supabase as any)
+                .from(table)
+                .delete()
+                .eq('id', selectedItem.id);
+
+            if (error) throw error;
+
+            setItems(prev => prev.filter(i => i.id !== selectedItem.id));
+            setSelectedItem(null);
+            alert("정상적으로 삭제되었습니다.");
+        } catch (err) {
+            console.error("Delete error:", err);
+            alert("삭제 중 오류가 발생했습니다.");
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const handleEditAndRediagnose = () => {
+        if (!selectedItem || selectedItem.type !== 'diagnostic') return;
+        router.push(`/dashboard/diagnostic?id=${selectedItem.id}`);
     };
 
     const formatDate = (dateString: string) => {
@@ -301,16 +336,42 @@ export default function DocumentsPage() {
                         >
                             <div className="mb-4 flex items-start justify-between">
                                 <div className={`rounded-lg p-3 transition-colors ${item.type === 'diagnostic'
-                                        ? 'bg-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white'
-                                        : 'bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white'
+                                    ? 'bg-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white'
+                                    : 'bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white'
                                     }`}>
                                     {item.type === 'diagnostic' ? <Zap className="h-6 w-6" /> : <FileText className="h-6 w-6" />}
                                 </div>
-                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium 
-                                    ${item.type === 'diagnostic' ? 'bg-indigo-100 text-indigo-800' : 'bg-zinc-100 text-zinc-800'}
-                                `}>
-                                    {item.type === 'diagnostic' ? '진단 리포트' : '문서 초안'}
-                                </span>
+                                <div className="flex flex-col items-end gap-2">
+                                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium 
+                                        ${item.type === 'diagnostic' ? 'bg-indigo-100 text-indigo-800' : 'bg-zinc-100 text-zinc-800'}
+                                    `}>
+                                        {item.type === 'diagnostic' ? '진단 리포트' : '문서 초안'}
+                                    </span>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            // Set the item as selected temporarily for the delete handler, 
+                                            // or just write a small inline delete
+                                            const confirmDelete = async () => {
+                                                if (!confirm("정말 이 항목을 삭제하시겠습니까?")) return;
+                                                try {
+                                                    const supabase = createSupabaseClient();
+                                                    const table = item.type === 'document' ? 'documents' : 'diagnostic_results';
+                                                    const { error } = await (supabase as any).from(table).delete().eq('id', item.id);
+                                                    if (error) throw error;
+                                                    setItems(prev => prev.filter(i => i.id !== item.id));
+                                                } catch (err) {
+                                                    console.error(err);
+                                                    alert("삭제 실패");
+                                                }
+                                            };
+                                            confirmDelete();
+                                        }}
+                                        className="p-1.5 rounded-md text-zinc-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </button>
+                                </div>
                             </div>
                             <h3 className="mb-2 text-lg font-bold text-zinc-900 line-clamp-1 group-hover:text-blue-600 transition-colors">
                                 {item.type === 'document' ? item.title : item.product_name}
@@ -379,29 +440,49 @@ export default function DocumentsPage() {
                             </div>
 
                             {/* Modal Footer */}
-                            <div className="border-t bg-white px-6 py-4 flex items-center justify-end gap-3 sticky bottom-0 z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                            <div className="border-t bg-white px-6 py-4 flex items-center justify-between sticky bottom-0 z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
                                 <button
-                                    onClick={handleCopy}
-                                    className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900 transition-colors focus:outline-none focus:ring-2 focus:ring-zinc-200"
+                                    onClick={handleDelete}
+                                    disabled={isDeleting}
+                                    className="flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors disabled:opacity-50"
                                 >
-                                    {copySuccess ? (
-                                        <>
-                                            <span className="text-green-600">복사 완료!</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Copy className="h-4 w-4" />
-                                            <span>{selectedItem.type === 'document' ? '내용 복사' : 'JSON 복사'}</span>
-                                        </>
+                                    <Trash2 className="h-4 w-4" />
+                                    <span>삭제</span>
+                                </button>
+
+                                <div className="flex items-center gap-3">
+                                    {selectedItem.type === 'diagnostic' && (
+                                        <button
+                                            onClick={handleEditAndRediagnose}
+                                            className="flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                        >
+                                            <RefreshCw className="h-4 w-4" />
+                                            <span>수정 및 재진단</span>
+                                        </button>
                                     )}
-                                </button>
-                                <button
-                                    onClick={handleDownload}
-                                    className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 shadow-md hover:shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
-                                >
-                                    <Download className="h-4 w-4" />
-                                    <span>{selectedItem.type === 'document' ? '다운로드 (.md)' : '다운로드 (.json)'}</span>
-                                </button>
+                                    <button
+                                        onClick={handleCopy}
+                                        className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900 transition-colors focus:outline-none focus:ring-2 focus:ring-zinc-200"
+                                    >
+                                        {copySuccess ? (
+                                            <>
+                                                <span className="text-green-600">복사 완료!</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Copy className="h-4 w-4" />
+                                                <span>{selectedItem.type === 'document' ? '내용 복사' : 'JSON 복사'}</span>
+                                            </>
+                                        )}
+                                    </button>
+                                    <button
+                                        onClick={handleDownload}
+                                        className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 shadow-md hover:shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                                    >
+                                        <Download className="h-4 w-4" />
+                                        <span>{selectedItem.type === 'document' ? '다운로드 (.md)' : '다운로드 (.json)'}</span>
+                                    </button>
+                                </div>
                             </div>
                         </motion.div>
                     </div>

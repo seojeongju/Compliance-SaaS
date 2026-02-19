@@ -117,7 +117,32 @@ export default function DiagnosticPage() {
     useEffect(() => {
         loadHistory();
         loadUserTier();
+
+        // Check for ID in URL to load specific diagnostic (from Documents page)
+        const params = new URLSearchParams(window.location.search);
+        const urlId = params.get('id');
+        if (urlId) {
+            fetchAndLoadResult(urlId);
+        }
     }, []);
+
+    async function fetchAndLoadResult(id: string) {
+        try {
+            const supabase = createSupabaseClient();
+            const { data, error } = await (supabase as any)
+                .from('diagnostic_results')
+                .select('*')
+                .eq('id', id)
+                .single();
+
+            if (error) throw error;
+            if (data) {
+                loadHistoryItem(data);
+            }
+        } catch (err) {
+            console.error("Failed to load diagnostic from URL:", err);
+        }
+    }
 
     async function loadUserTier() {
         try {
