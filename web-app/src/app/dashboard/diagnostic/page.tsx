@@ -14,6 +14,9 @@ import { motion } from "framer-motion";
 type Mode = "hub" | "general" | "detailed";
 type GeneralStep = "input" | "analyzing" | "result" | "generating_doc" | "doc_result";
 
+// Detailed Diagnostic Tool Types
+type DetailedTool = "deep_scan" | "risk_assessment" | "smart_doc" | "label_maker" | "ip_check" | "global_roadmap";
+
 interface Certification {
     name: string;
     type: "legal" | "safety" | "hygiene" | "other";
@@ -59,6 +62,17 @@ export default function DiagnosticPage() {
     const [error, setError] = useState<string | null>(null);
     const [generatedDoc, setGeneratedDoc] = useState<GeneratedDoc | null>(null);
     const [generatingDocName, setGeneratingDocName] = useState<string>("");
+
+    // -- Detailed Diagnostic States --
+    const [activeDetailedTool, setActiveDetailedTool] = useState<DetailedTool | null>(null);
+    const [labelFormData, setLabelFormData] = useState({
+        productName: "",
+        productType: "",
+        weight: "",
+        manufacturer: "",
+        precautions: "",
+    });
+    const [labelResult, setLabelResult] = useState<string | null>(null);
 
     useEffect(() => {
         loadHistory();
@@ -174,6 +188,35 @@ export default function DiagnosticPage() {
             setGeneratingDocName("");
         }
     };
+
+    // --- Detailed Diagnostic Functionality (Label Maker) ---
+    const handleLabelSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setStep("analyzing"); // Reuse analyzing state
+
+        // Mock generation delay
+        setTimeout(() => {
+            setLabelResult(`
+                [제품 표시사항 (Labeling)]
+
+                1. 품명: ${labelFormData.productName}
+                2. 종류/모델: ${labelFormData.productType}
+                3. 용량/중량: ${labelFormData.weight}
+                4. 제조자/수입자: ${labelFormData.manufacturer}
+                5. 제조국: 대한민국
+                6. 제조연월: 별도표기
+                7. 사용상 주의사항: 
+                   - ${labelFormData.precautions || "직사광선을 피하고 서늘한 곳에 보관하십시오."}
+                   - 어린이의 손이 닿지 않는 곳에 보관하십시오.
+                
+                [KC 인증 마크 위치 권고]
+                - 제품 본체 후면 또는 포장 박스 우측 하단
+                - 최소 5mm x 5mm 크기 이상 권장
+            `);
+            setStep("result"); // Use a distinct result state for label maker ideally, but reusing for simplicity
+        }, 2000);
+    };
+
 
     // --- Components ---
 
@@ -353,10 +396,17 @@ export default function DiagnosticPage() {
         <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-right-8 duration-500">
             <div className="flex items-center gap-4 mb-4">
                 <button
-                    onClick={() => setMode("hub")}
+                    onClick={() => {
+                        if (activeDetailedTool) {
+                            setActiveDetailedTool(null);
+                            setLabelResult(null);
+                        } else {
+                            setMode("hub");
+                        }
+                    }}
                     className="flex items-center gap-1 text-zinc-500 hover:text-zinc-900 transition-colors"
                 >
-                    <ChevronRight className="h-4 w-4 rotate-180" /> 이전으로
+                    <ChevronRight className="h-4 w-4 rotate-180" /> {activeDetailedTool ? "도구 목록" : "이전으로"}
                 </button>
                 <div className="h-4 w-px bg-zinc-300"></div>
                 <h1 className="text-2xl font-bold text-zinc-900 flex items-center gap-2">
@@ -369,56 +419,180 @@ export default function DiagnosticPage() {
                 )}
             </div>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[
-                    { title: "심층 정밀 진단", icon: scanIcon, desc: "부품 리스트(BOM)와 회로도를 기반으로 KC 인증 항목을 정밀하게 분석합니다.", blocked: false }, // Let this one be open for demo? No, lock all for consistency or open one.
-                    { title: "위험성 평가 (ISO)", icon: AlertTriangle, desc: "제품의 타겟 연령과 사용 환경에 따른 잠재적 위험 요소를 평가합니다.", blocked: true },
-                    { title: "스마트 서류 생성", icon: FileText, desc: "시험 신청서, 제품 설명서 등 복잡한 공문서 초안을 AI가 작성합니다.", blocked: true },
-                    { title: "라벨 표시사항 제작", icon: Printer, desc: "포장재질과 용량에 맞춘 필수 법적 기재사항(라벨) 도안을 생성합니다.", blocked: true },
-                    { title: "지재권 침해 분석", icon: Scale, desc: "제품 디자인이나 상표가 기존 특허권을 침해하는지 대조 분석합니다.", blocked: true },
-                    { title: "글로벌 수출 로드맵", icon: Globe, desc: "미국(FDA), 유럽(CE) 등 해외 수출 시 필요한 국가별 인증 정보를 제공합니다.", blocked: true },
-                ].map((item, idx) => (
-                    <div
-                        key={idx}
-                        className={`group relative rounded-xl border bg-white p-6 transition-all ${userTier === 'pro'
-                                ? 'border-zinc-200 hover:border-indigo-500 hover:shadow-lg cursor-pointer'
-                                : 'border-zinc-100 bg-zinc-50'
-                            }`}
-                        onClick={() => {
-                            if (userTier === 'free') {
-                                alert("Pro 등급으로 업그레이드하시면 이용할 수 있습니다.");
-                            } else {
-                                alert(`${item.title} 기능은 준비 중입니다.`);
-                            }
-                        }}
-                    >
-                        <div className={`mb-4 inline-flex h-12 w-12 items-center justify-center rounded-lg ${userTier === 'pro' ? 'bg-indigo-50 text-indigo-600' : 'bg-zinc-200 text-zinc-400'
-                            }`}>
-                            <item.icon className="h-6 w-6" />
-                        </div>
-                        <h3 className={`text-lg font-bold mb-2 ${userTier === 'pro' ? 'text-zinc-900' : 'text-zinc-500'
-                            }`}>{item.title}</h3>
-                        <p className={`text-sm mb-4 leading-relaxed ${userTier === 'pro' ? 'text-zinc-600' : 'text-zinc-400'
-                            }`}>
-                            {item.desc}
-                        </p>
+            {!activeDetailedTool ? (
+                // Detailed Tool Selection Grid
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {[
+                        { id: "label_maker", title: "라벨 표시사항 제작", icon: Printer, desc: "포장재질과 용량에 맞춘 필수 법적 기재사항(라벨) 도안을 생성합니다.", blocked: false }, // Open this for demo
+                        { id: "deep_scan", title: "심층 정밀 진단", icon: scanIcon, desc: "부품 리스트(BOM)와 회로도를 기반으로 KC 인증 항목을 정밀하게 분석합니다.", blocked: true },
+                        { id: "risk", title: "위험성 평가 (ISO)", icon: AlertTriangle, desc: "제품의 타겟 연령과 사용 환경에 따른 잠재적 위험 요소를 평가합니다.", blocked: true },
+                        { id: "smart_doc", title: "스마트 서류 생성", icon: FileText, desc: "시험 신청서, 제품 설명서 등 복잡한 공문서 초안을 AI가 작성합니다.", blocked: true },
+                        { id: "ip_check", title: "지재권 침해 분석", icon: Scale, desc: "제품 디자인이나 상표가 기존 특허권을 침해하는지 대조 분석합니다.", blocked: true },
+                        { id: "global", title: "글로벌 수출 로드맵", icon: Globe, desc: "미국(FDA), 유럽(CE) 등 해외 수출 시 필요한 국가별 인증 정보를 제공합니다.", blocked: true },
+                    ].map((item, idx) => (
+                        <div
+                            key={idx}
+                            className={`group relative rounded-xl border bg-white p-6 transition-all ${userTier === 'pro'
+                                    ? 'border-zinc-200 hover:border-indigo-500 hover:shadow-lg cursor-pointer'
+                                    : 'border-zinc-100 bg-zinc-50'
+                                }`}
+                            onClick={() => {
+                                if (userTier === 'free') {
+                                    alert("Pro 등급으로 업그레이드하시면 이용할 수 있습니다.");
+                                } else if (item.blocked) {
+                                    alert(`${item.title} 기능은 준비 중입니다.`);
+                                } else {
+                                    setActiveDetailedTool(item.id as DetailedTool);
+                                }
+                            }}
+                        >
+                            <div className={`mb-4 inline-flex h-12 w-12 items-center justify-center rounded-lg ${userTier === 'pro' ? 'bg-indigo-50 text-indigo-600' : 'bg-zinc-200 text-zinc-400'
+                                }`}>
+                                <item.icon className="h-6 w-6" />
+                            </div>
+                            <h3 className={`text-lg font-bold mb-2 ${userTier === 'pro' ? 'text-zinc-900' : 'text-zinc-500'
+                                }`}>{item.title}</h3>
+                            <p className={`text-sm mb-4 leading-relaxed ${userTier === 'pro' ? 'text-zinc-600' : 'text-zinc-400'
+                                }`}>
+                                {item.desc}
+                            </p>
 
-                        {userTier === 'free' && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity rounded-xl">
-                                <div className="bg-zinc-900 text-white text-xs font-bold px-3 py-2 rounded-full flex items-center gap-2 shadow-xl">
-                                    <Lock className="h-3 w-3" /> Upgrade to Pro
+                            {userTier === 'free' && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity rounded-xl">
+                                    <div className="bg-zinc-900 text-white text-xs font-bold px-3 py-2 rounded-full flex items-center gap-2 shadow-xl">
+                                        <Lock className="h-3 w-3" /> Upgrade to Pro
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
 
-                        {userTier === 'pro' && (
-                            <div className="mt-4 flex items-center text-sm font-medium text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
-                                실행하기 <ChevronRight className="h-4 w-4 ml-1" />
+                            {userTier === 'pro' && !item.blocked && (
+                                <div className="mt-4 flex items-center text-sm font-medium text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
+                                    실행하기 <ChevronRight className="h-4 w-4 ml-1" />
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                // Active Detailed Tool View (Example: Label Maker)
+                <div className="animate-in fade-in slide-in-from-right-8 duration-500">
+                    {activeDetailedTool === 'label_maker' && (
+                        <div className="max-w-4xl mx-auto">
+                            <div className="mb-6">
+                                <h2 className="text-2xl font-bold text-zinc-900 mb-2">🏷️ 라벨 표시사항 제작 (Label Maker)</h2>
+                                <p className="text-zinc-600">제품 포장에 반드시 표기해야 할 법적 사항을 자동으로 생성해 드립니다.</p>
                             </div>
-                        )}
-                    </div>
-                ))}
-            </div>
+
+                            {!labelResult ? (
+                                <form onSubmit={handleLabelSubmit} className="space-y-6 rounded-xl border bg-white p-8 shadow-sm">
+                                    <div className="grid gap-6 md:grid-cols-2">
+                                        <div>
+                                            <label className="mb-2 block text-sm font-medium text-zinc-700">품명 (제품명)</label>
+                                            <input
+                                                required
+                                                className="w-full rounded-md border border-zinc-300 px-4 py-2"
+                                                value={labelFormData.productName}
+                                                onChange={e => setLabelFormData({ ...labelFormData, productName: e.target.value })}
+                                                placeholder="예: 퓨어 핸드워시"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 block text-sm font-medium text-zinc-700">종류/모델</label>
+                                            <input
+                                                required
+                                                className="w-full rounded-md border border-zinc-300 px-4 py-2"
+                                                value={labelFormData.productType}
+                                                onChange={e => setLabelFormData({ ...labelFormData, productType: e.target.value })}
+                                                placeholder="예: 액체형 / HW-2024"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 block text-sm font-medium text-zinc-700">용량/중량</label>
+                                            <input
+                                                required
+                                                className="w-full rounded-md border border-zinc-300 px-4 py-2"
+                                                value={labelFormData.weight}
+                                                onChange={e => setLabelFormData({ ...labelFormData, weight: e.target.value })}
+                                                placeholder="예: 500ml"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 block text-sm font-medium text-zinc-700">제조자/수입자</label>
+                                            <input
+                                                required
+                                                className="w-full rounded-md border border-zinc-300 px-4 py-2"
+                                                value={labelFormData.manufacturer}
+                                                onChange={e => setLabelFormData({ ...labelFormData, manufacturer: e.target.value })}
+                                                placeholder="예: (주)서티메이트"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="mb-2 block text-sm font-medium text-zinc-700">사용상 주의사항 (선택)</label>
+                                        <textarea
+                                            className="w-full rounded-md border border-zinc-300 px-4 py-2"
+                                            rows={3}
+                                            value={labelFormData.precautions}
+                                            onChange={e => setLabelFormData({ ...labelFormData, precautions: e.target.value })}
+                                            placeholder="특별히 강조할 주의사항이 있다면 입력해주세요."
+                                        />
+                                    </div>
+
+                                    <div className="flex justify-end pt-4">
+                                        <button
+                                            type="submit"
+                                            disabled={step === "analyzing"}
+                                            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-6 py-3 font-semibold text-white shadow-md hover:bg-indigo-700 transition disabled:opacity-50"
+                                        >
+                                            {step === "analyzing" ? (
+                                                <>
+                                                    <Loader2 className="h-5 w-5 animate-spin" /> 생성 중...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Printer className="h-5 w-5" /> 라벨 도안 생성하기
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </form>
+                            ) : (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="rounded-xl border bg-white p-8 shadow-sm"
+                                >
+                                    <div className="flex items-center justify-between mb-6 border-b pb-4">
+                                        <h3 className="text-xl font-bold text-zinc-900">도안 생성 결과</h3>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setLabelResult(null)}
+                                                className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-900"
+                                            >
+                                                다시 작성하기
+                                            </button>
+                                            <button className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700">
+                                                <Download className="h-4 w-4" /> PDF 다운로드
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-zinc-50 p-6 rounded-lg border border-zinc-200 font-mono text-sm leading-relaxed whitespace-pre-wrap">
+                                        {labelResult}
+                                    </div>
+
+                                    <div className="mt-6 flex items-start gap-3 rounded-lg bg-amber-50 p-4 text-amber-800 text-sm">
+                                        <AlertTriangle className="h-5 w-5 shrink-0" />
+                                        <p>
+                                            이 결과물은 AI가 생성한 초안입니다. 실제 인쇄 전 반드시 관련 법령(표시광고법 등)을 확인하거나 전문가의 검수를 받으시기 바랍니다.
+                                        </p>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 
