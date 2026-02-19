@@ -2,7 +2,7 @@ import { OpenAI } from "openai";
 import { z } from "zod";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { NextResponse } from "next/server";
-import { createSupabaseClient } from "../../../lib/supabaseClient";
+import { createSupabaseClient } from "@/lib/supabaseClient";
 
 export const runtime = "edge";
 
