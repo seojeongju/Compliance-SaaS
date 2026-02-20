@@ -67,11 +67,14 @@ export default function LoginPage() {
                 <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-indigo-600 blur-[128px] opacity-30 z-0"></div>
 
                 <div className="relative z-10">
-                    <Link href="/" className="flex items-center gap-2 font-bold text-2xl text-white">
+                    <Link href="/" className="flex items-center gap-2 font-bold text-2xl text-white hover:opacity-80 transition">
                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-900/50">
                             <ShieldCheck className="h-6 w-6" />
                         </div>
-                        <span>Certi-Mate</span>
+                        <div className="flex flex-col leading-tight">
+                            <span className="text-2xl font-bold font-sans">Certi-Mate</span>
+                            <span className="text-xs font-medium text-zinc-400">(주)와우쓰리디</span>
+                        </div>
                     </Link>
                 </div>
 
@@ -234,9 +237,14 @@ export default function LoginPage() {
             </div>
 
             <div className="lg:hidden absolute top-4 left-4 z-50">
-                <Link href="/" className="flex items-center gap-2 font-bold text-xl text-zinc-900 p-2 bg-white/80 rounded-lg backdrop-blur">
-                    <ShieldCheck className="h-6 w-6 text-blue-600" />
-                    <span>Certi-Mate</span>
+                <Link href="/" className="flex items-center gap-2 font-bold text-xl text-zinc-900 p-2 bg-white/80 rounded-lg backdrop-blur shadow-sm">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">
+                        <ShieldCheck className="h-5 w-5" />
+                    </div>
+                    <div className="flex flex-col leading-tight">
+                        <span className="text-xl font-bold">Certi-Mate</span>
+                        <span className="text-[10px] font-medium text-zinc-500">(주)와우쓰리디</span>
+                    </div>
                 </Link>
             </div>
         </div>

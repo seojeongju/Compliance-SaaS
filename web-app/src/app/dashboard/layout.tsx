@@ -65,9 +65,14 @@ export default function DashboardLayout({
             {/* Sidebar */}
             <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r bg-white flex flex-col">
                 <div className="flex h-16 items-center border-b px-6 flex-shrink-0">
-                    <Link href="/" className="flex items-center gap-2 font-bold text-xl text-blue-600">
-                        <ShieldCheck className="h-6 w-6" />
-                        <span>Certi-Mate</span>
+                    <Link href="/" className="flex items-center gap-2 font-bold text-xl text-zinc-900 hover:opacity-80 transition">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">
+                            <ShieldCheck className="h-5 w-5" />
+                        </div>
+                        <div className="flex flex-col leading-tight">
+                            <span className="text-xl font-bold">Certi-Mate</span>
+                            <span className="text-[10px] font-medium text-zinc-500">(주)와우쓰리디</span>
+                        </div>
                     </Link>
                 </div>
 

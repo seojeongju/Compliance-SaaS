@@ -5,7 +5,7 @@ import { createSupabaseClient } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import {
     Users, Activity, DollarSign, Settings, Search, CheckCircle,
-    User, Lock, Shield, ArrowUp, AlertCircle, Loader2
+    User, Lock, Shield, ArrowUp, AlertCircle, Loader2, ShieldCheck
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -238,9 +238,14 @@ export default function AdminDashboard() {
             <header className="bg-white border-b border-zinc-200">
                 <div className="container mx-auto px-4 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <Shield className="h-6 w-6 text-indigo-600" />
-                        <h1 className="text-lg font-bold text-zinc-900">Admin Dashboard</h1>
-                        <span className="bg-indigo-50 text-indigo-700 text-xs px-2 py-0.5 rounded-full font-medium">BETA</span>
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white">
+                            <ShieldCheck className="h-5 w-5" />
+                        </div>
+                        <div className="flex flex-col leading-tight">
+                            <h1 className="text-lg font-bold text-zinc-900">Certi-Mate Admin</h1>
+                            <span className="text-[10px] font-medium text-zinc-500">(주)와우쓰리디</span>
+                        </div>
+                        <span className="ml-2 bg-indigo-50 text-indigo-700 text-[10px] px-2 py-0.5 rounded-full font-bold">BETA</span>
                     </div>
                     <div className="flex items-center gap-4">
                         <span className="text-sm text-zinc-500">{currentUser?.email} (Admin)</span>

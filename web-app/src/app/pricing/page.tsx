@@ -116,7 +116,10 @@ export default function PricingPage() {
                         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">
                             <ShieldCheck className="h-5 w-5" />
                         </div>
-                        <span>Certi-Mate</span>
+                        <div className="flex flex-col leading-tight">
+                            <span className="text-xl font-bold">Certi-Mate</span>
+                            <span className="text-[10px] font-medium text-zinc-500">(주)와우쓰리디</span>
+                        </div>
                     </Link>
                     <div className="flex items-center gap-4">
                         {loading ? (
@@ -296,8 +299,13 @@ export default function PricingPage() {
             <footer className="border-t border-zinc-100 py-12 bg-zinc-50/50">
                 <div className="container mx-auto px-4 text-center">
                     <div className="flex items-center justify-center gap-2 font-bold text-xl text-zinc-900 mb-4 font-sans">
-                        <ShieldCheck className="h-6 w-6 text-blue-600" />
-                        <span>Certi-Mate</span>
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">
+                            <ShieldCheck className="h-5 w-5" />
+                        </div>
+                        <div className="flex flex-col leading-tight text-left">
+                            <span className="text-xl font-bold">Certi-Mate</span>
+                            <span className="text-[10px] font-medium text-zinc-500">(주)와우쓰리디</span>
+                        </div>
                     </div>
                     <p className="text-xs text-zinc-400">
                         &copy; {new Date().getFullYear()} Certi-Mate. All rights reserved.
