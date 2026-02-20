@@ -128,7 +128,10 @@ export default function Home() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">
               <ShieldCheck className="h-5 w-5" />
             </div>
-            <span>Certi-Mate</span>
+            <div className="flex flex-col leading-tight">
+              <span className="text-xl font-bold">Certi-Mate</span>
+              <span className="text-[10px] font-medium text-zinc-500">(주)와우쓰리디</span>
+            </div>
           </Link>
           <nav className="hidden md:flex gap-8 text-sm font-medium text-zinc-600">
             <Link href="#services" className="hover:text-blue-600 transition-colors">서비스</Link>
@@ -217,8 +220,8 @@ export default function Home() {
                 )}
 
                 <div className="flex flex-col gap-1 text-xs text-zinc-400 sm:text-left">
-                  <span className="flex items-center gap-1"><CheckCircle className="h-3 w-3" /> 별도 회원가입 없음 (체험)</span>
-                  <span className="flex items-center gap-1"><CheckCircle className="h-3 w-3" /> 100% 무료</span>
+                  <span className="flex items-center gap-1"><CheckCircle className="h-3 w-3" /> 무료회원 (종합진단)</span>
+                  <span className="flex items-center gap-1"><CheckCircle className="h-3 w-3" /> 유료회원 (정밀진단)</span>
                 </div>
               </div>
             </motion.div>
@@ -362,46 +365,83 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-zinc-100 bg-white py-12">
+      <footer id="contact" className="border-t border-zinc-100 bg-white py-16">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 gap-8 md:grid-cols-4 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-12 md:grid-cols-4 lg:grid-cols-5">
             <div className="col-span-2 lg:col-span-2">
-              <div className="flex items-center gap-2 font-bold text-xl text-zinc-900">
+              <div className="flex items-center gap-2 font-bold text-zinc-900">
                 <ShieldCheck className="h-6 w-6 text-blue-600" />
-                <span>Certi-Mate</span>
+                <div className="flex flex-col leading-tight">
+                  <span className="text-xl font-bold">Certi-Mate</span>
+                  <span className="text-[10px] font-medium text-zinc-500">(주)와우쓰리디</span>
+                </div>
               </div>
-              <p className="mt-4 text-sm text-zinc-500 max-w-xs">
-                AI 기반 제조 규제 진단 및 인증 가이드 솔루션.<br />
-                복잡한 규제를 혁신 기술로 해결합니다.
+              <p className="mt-4 text-sm text-zinc-500 max-w-sm leading-relaxed">
+                <strong>(주)와우쓰리디 (WOW3D Co., Ltd.)</strong><br />
+                데이터 기반 스마트 경영 솔루션 전문 기업.<br />
+                복잡한 규제를 혁신 기술로 해결하고 고객의 비즈니스 성장을 지원합니다.
               </p>
+              <div className="mt-6 space-y-2 text-sm text-zinc-500">
+                <p className="flex items-center gap-2">
+                  <span className="font-bold text-zinc-700">대표자:</span> 김순희
+                </p>
+                <p className="flex items-center gap-2">
+                  <span className="font-bold text-zinc-700">사업자등록번호:</span> 849-88-01659
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="font-bold text-zinc-700 shrink-0">서울 본사:</span>
+                  <span>서울시 마포구 독막로 93 상수빌딩 4층</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="font-bold text-zinc-700 shrink-0">구미 지사:</span>
+                  <span>경북 구미시 산호대로 253 구미첨단의료기술타워 606호</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="font-bold text-zinc-700 shrink-0">전주 지사:</span>
+                  <span>전북특별자치도 전주시 덕진구 반룡로 109 테크노빌 A동 207호</span>
+                </p>
+              </div>
+            </div>
+            <div>
+              <h3 className="font-semibold text-zinc-900">고객지원</h3>
+              <ul className="mt-4 space-y-3 text-sm text-zinc-500">
+                <li>
+                  <span className="block font-bold text-zinc-700">서울 연락처</span>
+                  <a href="tel:02-3144-3137" className="hover:text-blue-600 transition-colors">02-3144-3137</a>
+                </li>
+                <li>
+                  <span className="block font-bold text-zinc-700">구미 연락처</span>
+                  <a href="tel:054-464-3137" className="hover:text-blue-600 transition-colors">054-464-3137</a>
+                </li>
+                <li>
+                  <span className="block font-bold text-zinc-700">이메일</span>
+                  <a href="mailto:wow3d16@naver.com" className="hover:text-blue-600 transition-colors">wow3d16@naver.com</a>
+                </li>
+              </ul>
             </div>
             <div>
               <h3 className="font-semibold text-zinc-900">제품</h3>
               <ul className="mt-4 space-y-2 text-sm text-zinc-500">
-                <li><Link href="#services" className="hover:text-blue-600">기능 소개</Link></li>
+                <li><Link href="#services" className="hover:text-blue-600">서비스 소개</Link></li>
                 <li><Link href="/pricing" className="hover:text-blue-600">요금제</Link></li>
-                <li><Link href="#" className="hover:text-blue-600">업데이트</Link></li>
+                <li><Link href="#" className="hover:text-blue-600">업데이트 소식</Link></li>
               </ul>
             </div>
             <div>
-              <h3 className="font-semibold text-zinc-900">회사</h3>
+              <h3 className="font-semibold text-zinc-900">법적고지</h3>
               <ul className="mt-4 space-y-2 text-sm text-zinc-500">
-                <li><Link href="#" className="hover:text-blue-600">소개</Link></li>
-                <li><Link href="#" className="hover:text-blue-600">블로그</Link></li>
-                <li><Link href="#" className="hover:text-blue-600">채용</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold text-zinc-900">지원</h3>
-              <ul className="mt-4 space-y-2 text-sm text-zinc-500">
-                <li><Link href="#" className="hover:text-blue-600">고객센터</Link></li>
-                <li><Link href="#" className="hover:text-blue-600">이용약관</Link></li>
-                <li><Link href="#" className="hover:text-blue-600">개인정보처리방침</Link></li>
+                <li><Link href="/terms" className="hover:text-blue-600 transition-colors">이용약관</Link></li>
+                <li><Link href="/privacy" className="hover:text-blue-600 transition-colors">개인정보처리방침</Link></li>
               </ul>
             </div>
           </div>
-          <div className="mt-12 border-t border-zinc-100 pt-8 text-center text-sm text-zinc-400">
-            &copy; {new Date().getFullYear()} Certi-Mate. All rights reserved.
+          <div className="mt-16 border-t border-zinc-100 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-zinc-400">
+            <p>&copy; {new Date().getFullYear()} (주)와우쓰리디. All rights reserved.</p>
+            <div className="flex gap-6">
+              <span>NCS On-Track</span>
+              <span>WOW-Smart Manager</span>
+              <span>WOW-CBT</span>
+            </div>
           </div>
         </div>
       </footer>

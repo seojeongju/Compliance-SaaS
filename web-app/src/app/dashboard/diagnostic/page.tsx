@@ -44,6 +44,10 @@ interface DiagnosticResult {
 interface GeneratedDoc {
     title: string;
     content: string;
+    sections?: Array<{
+        heading: string;
+        body: string;
+    }>;
 }
 
 interface LabelResult {
@@ -100,6 +104,21 @@ interface SubsidyResult {
         link: string;
     }>;
     strategy_advice: string;
+}
+
+interface RiskAssessmentResult {
+    overall_risk_level: "Low" | "Medium" | "High" | "Critical";
+    summary: string;
+    hazard_analysis: Array<{
+        hazard_item: string;
+        potential_risk: string;
+        frequency: number; // 1-5
+        severity: number; // 1-5
+        risk_score: number; // freq * sev
+        mitigation_strategy: string;
+    }>;
+    applicable_iso_standards: string[];
+    certification_roadmap: string[];
 }
 
 // --- Main Component ---
@@ -159,6 +178,25 @@ export default function DiagnosticPage() {
         interestArea: "certification", // certification, export, rnd, marketing
     });
     const [subsidyResult, setSubsidyResult] = useState<SubsidyResult | null>(null);
+
+    // Risk Assessment States
+    const [riskFormData, setRiskFormData] = useState({
+        productName: "",
+        category: "electronics",
+        usageEnvironment: "indoor", // indoor, outdoor, industrial, professional
+        targetUser: "adult", // infant, child, adult, elderly
+        mainMaterials: "",
+        powerSource: "battery", // battery, plug, none
+    });
+    const [riskResult, setRiskResult] = useState<RiskAssessmentResult | null>(null);
+
+    // Smart Document Generation States
+    const [smartDocFormData, setSmartDocFormData] = useState({
+        productName: "",
+        category: "electronics",
+        description: "",
+        documentType: "제품설명서",
+    });
 
     const [userRole, setUserRole] = useState<"admin" | "user">("user");
 
@@ -281,6 +319,30 @@ export default function DiagnosticPage() {
             setMode("detailed");
             setActiveDetailedTool("subsidy");
             setStep("result");
+        } else if (item.tool_type === 'risk') {
+            setRiskResult(item.result_json);
+            setRiskFormData({
+                productName: item.product_name,
+                category: item.category,
+                usageEnvironment: item.result_json.usage_env || "indoor",
+                targetUser: item.result_json.target_user || "adult",
+                mainMaterials: item.result_json.materials || "",
+                powerSource: item.result_json.power || "battery",
+            });
+            setMode("detailed");
+            setActiveDetailedTool("risk");
+            setStep("result");
+        } else if (item.tool_type === 'smart_doc') {
+            setGeneratedDoc(item.result_json);
+            setMode("detailed");
+            setActiveDetailedTool("smart_doc");
+            setStep("doc_result");
+            setSmartDocFormData({
+                productName: item.product_name,
+                category: item.category,
+                description: item.result_json.original_params?.description || "",
+                documentType: item.result_json.doc_type || "제품설명서",
+            });
         } else {
             setResult(item.result_json);
             setFormData({
@@ -344,19 +406,25 @@ export default function DiagnosticPage() {
         }
     };
 
-    const generateDocument = async (docType: string, docName: string) => {
+    const generateDocument = async (docType: string, docName: string, customParams?: { productName: string, category: string, description: string }) => {
         setGeneratingDocName(docName);
         setStep("generating_doc");
         setError(null);
+
+        const params = customParams || {
+            productName: formData.productName,
+            category: formData.category,
+            description: formData.description,
+        };
 
         try {
             const response = await fetch("/api/generate-document", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    productName: formData.productName,
-                    category: formData.category,
-                    description: formData.description,
+                    productName: params.productName,
+                    category: params.category,
+                    description: params.description,
                     documentType: docType,
                     diagnosticId: currentId, // Pass the link IF it exists
                 }),
@@ -370,6 +438,25 @@ export default function DiagnosticPage() {
             const docData: GeneratedDoc = await response.json();
             setGeneratedDoc(docData);
             setStep("doc_result");
+
+            // Save to diagnostic_results for history
+            try {
+                const supabase = createSupabaseClient();
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    await (supabase as any).from('diagnostic_results').insert({
+                        user_id: user.id,
+                        product_name: params.productName,
+                        description: `${docType} - AI 생성 초안`,
+                        category: params.category,
+                        result_json: { ...docData, doc_type: docType, original_params: params },
+                        tool_type: 'smart_doc'
+                    });
+                    loadHistory();
+                }
+            } catch (e) {
+                console.error("Failed to save smart_doc to history", e);
+            }
         } catch (err: unknown) {
             console.error(err);
             setError("문서 생성 중 오류가 발생했습니다.");
@@ -633,6 +720,66 @@ export default function DiagnosticPage() {
         }
     };
 
+    const handleRiskSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setStep("analyzing");
+        setError(null);
+
+        try {
+            const response = await fetch("/api/diagnostic/risk", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(riskFormData),
+            });
+
+            if (!response.ok) throw new Error("Risk assessment failed");
+
+            const data: RiskAssessmentResult = await response.json();
+            setRiskResult(data);
+            setStep("result");
+        } catch (err) {
+            console.error(err);
+            setError("위험성 평가 중 오류가 발생했습니다.");
+            setStep("result");
+        }
+    };
+
+    const handleSaveRisk = async () => {
+        if (!riskResult) return;
+
+        try {
+            const supabase = createSupabaseClient();
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (!user) {
+                alert("로그인이 필요합니다.");
+                return;
+            }
+
+            const { data, error } = await (supabase as any).from('diagnostic_results').insert({
+                user_id: user.id,
+                product_name: riskFormData.productName,
+                description: `ISO 위험성 평가 - ${riskFormData.category}`,
+                category: riskFormData.category,
+                result_json: {
+                    ...riskResult,
+                    usage_env: riskFormData.usageEnvironment,
+                    target_user: riskFormData.targetUser,
+                    materials: riskFormData.mainMaterials,
+                    power: riskFormData.powerSource
+                },
+                tool_type: 'risk'
+            }).select();
+
+            if (error) throw error;
+            alert("위험성 평가 결과가 저장되었습니다.");
+            loadHistory();
+        } catch (e) {
+            console.error(e);
+            alert("저장 중 오류가 발생했습니다.");
+        }
+    };
+
     const handleSaveAndConsult = async () => {
         if (!result) return;
 
@@ -668,6 +815,78 @@ export default function DiagnosticPage() {
         } catch (e) {
             console.error(e);
             alert("저장 중 오류가 발생했습니다.");
+        }
+    };
+
+    const downloadDocPDF = async () => {
+        if (!generatedDoc) return;
+
+        const doc = new jsPDF();
+
+        try {
+            // Fetch Korean Font (NanumGothic)
+            const fontUrl = "https://raw.githubusercontent.com/google/fonts/main/ofl/nanumgothic/NanumGothic-Regular.ttf";
+            const response = await fetch(fontUrl);
+            if (!response.ok) throw new Error("Failed to load Korean font");
+
+            const fontBuffer = await response.arrayBuffer();
+            const fontUint8 = new Uint8Array(fontBuffer);
+
+            let fontBinary = "";
+            for (let i = 0; i < fontUint8.length; i++) {
+                fontBinary += String.fromCharCode(fontUint8[i]);
+            }
+
+            doc.addFileToVFS("NanumGothic.ttf", fontBinary);
+            doc.addFont("NanumGothic.ttf", "NanumGothic", "normal");
+            doc.setFont("NanumGothic");
+
+            doc.setFontSize(22);
+            doc.text(generatedDoc.title, 105, 30, { align: "center" });
+
+            doc.setFontSize(10);
+            doc.text(`생성일자: ${new Date().toLocaleDateString()}`, 105, 40, { align: "center" });
+            doc.text(`Certi-Mate AI 전문 행정 지원 시스템`, 105, 45, { align: "center" });
+
+            let currentY = 60;
+
+            if (generatedDoc.sections && generatedDoc.sections.length > 0) {
+                generatedDoc.sections.forEach((section) => {
+                    // Page break check
+                    if (currentY > 260) {
+                        doc.addPage();
+                        currentY = 20;
+                    }
+
+                    doc.setFontSize(14);
+                    doc.setFont("NanumGothic", "bold");
+                    doc.text(section.heading, 14, currentY);
+
+                    doc.setFontSize(11);
+                    doc.setFont("NanumGothic", "normal");
+                    const splitBody = doc.splitTextToSize(section.body, 180);
+                    doc.text(splitBody, 14, currentY + 8);
+
+                    currentY += 15 + (splitBody.length * 6);
+                });
+            } else {
+                const splitContent = doc.splitTextToSize(generatedDoc.content, 180);
+                doc.text(splitContent, 14, currentY);
+            }
+
+            // Footer
+            const pageCount = (doc as any).internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(8);
+                doc.setTextColor(150);
+                doc.text(`본 문서는 Certi-Mate AI에 의해 생성된 초안이며, 반드시 관련 법령 전문가의 최종 검토를 거쳐야 합니다. | 페이지 ${i} / ${pageCount}`, 105, 285, { align: "center" });
+            }
+
+            doc.save(`${generatedDoc.title.replace(/\s+/g, '_')}.pdf`);
+        } catch (err) {
+            console.error(err);
+            alert("PDF 생성 중 오류가 발생했습니다.");
         }
     };
 
@@ -996,8 +1215,8 @@ export default function DiagnosticPage() {
                     {[
                         { id: "label_maker", title: "라벨 표시사항 제작", icon: Printer, desc: "포장재질과 용량에 맞춘 필수 법적 기재사항(라벨) 도안을 생성합니다.", blocked: false }, // Open this for demo
                         { id: "subsidy", title: "정부지원사업 매칭", icon: Zap, desc: "인증 비용, R&D, 해외 판로 개척 등 현재 참여 가능한 정부 지원 프로그램을 매칭합니다.", blocked: false },
-                        { id: "risk", title: "위험성 평가 (ISO)", icon: AlertTriangle, desc: "제품의 타겟 연령과 사용 환경에 따른 잠재적 위험 요소를 평가합니다.", blocked: true },
-                        { id: "smart_doc", title: "스마트 서류 생성", icon: FileText, desc: "시험 신청서, 제품 설명서 등 복잡한 공문서 초안을 AI가 작성합니다.", blocked: true },
+                        { id: "risk", title: "위험성 평가 (ISO)", icon: AlertTriangle, desc: "제품의 타겟 연령과 사용 환경에 따른 잠재적 위험 요소를 평가합니다.", blocked: false },
+                        { id: "smart_doc", title: "스마트 서류 생성", icon: FileText, desc: "시험 신청서, 제품 설명서 등 복잡한 공문서 초안을 AI가 작성합니다.", blocked: false },
                         { id: "ip_check", title: "지재권 침해 분석", icon: Scale, desc: "제품 디자인이나 상표가 기존 특허권을 침해하는지 대조 분석합니다.", blocked: false },
                         { id: "global", title: "글로벌 수출 로드맵", icon: Globe, desc: "미국(FDA), 유럽(CE) 등 해외 수출 시 필요한 국가별 인증 정보를 제공합니다.", blocked: false }, // Unlocked
                     ].map((item, idx) => (
@@ -1530,6 +1749,295 @@ export default function DiagnosticPage() {
                         </div>
                     )}
 
+                    {activeDetailedTool === 'risk' && (
+                        <div className="max-w-4xl mx-auto">
+                            <div className="mb-6">
+                                <h2 className="text-2xl font-bold text-zinc-900 mb-2">🛡️ ISO 위험성 평가 (Risk Assessment)</h2>
+                                <p className="text-zinc-600">제품의 타겟 연령과 사용 환경에 따른 잠재적 위험 요소를 ISO 표준에 따라 평가합니다.</p>
+                            </div>
+
+                            {!riskResult ? (
+                                <form onSubmit={handleRiskSubmit} className="space-y-6 rounded-xl border bg-white p-8 shadow-sm">
+                                    <div className="grid gap-6 md:grid-cols-2">
+                                        <div>
+                                            <label className="mb-2 block text-sm font-medium text-zinc-700">제품명</label>
+                                            <input
+                                                required
+                                                className="w-full rounded-md border border-zinc-300 px-4 py-2"
+                                                value={riskFormData.productName}
+                                                onChange={e => setRiskFormData({ ...riskFormData, productName: e.target.value })}
+                                                placeholder="예: 어린이용 스마트 전동 칫솔"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 block text-sm font-medium text-zinc-700">카테고리</label>
+                                            <select
+                                                className="w-full rounded-md border border-zinc-300 px-4 py-2"
+                                                value={riskFormData.category}
+                                                onChange={e => setRiskFormData({ ...riskFormData, category: e.target.value })}
+                                            >
+                                                <option value="electronics">전자제품</option>
+                                                <option value="toys">완구/어린이제품</option>
+                                                <option value="medical">의료보조기기</option>
+                                                <option value="industrial">산업용 장비</option>
+                                                <option value="household">생활가전</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 block text-sm font-medium text-zinc-700">사용 환경</label>
+                                            <select
+                                                className="w-full rounded-md border border-zinc-300 px-4 py-2"
+                                                value={riskFormData.usageEnvironment}
+                                                onChange={e => setRiskFormData({ ...riskFormData, usageEnvironment: e.target.value })}
+                                            >
+                                                <option value="indoor">실내 (가정/사무실)</option>
+                                                <option value="outdoor">실외 (야외/이동형)</option>
+                                                <option value="industrial">산업 현장</option>
+                                                <option value="professional">전문가용 환경</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 block text-sm font-medium text-zinc-700">타겟 사용자</label>
+                                            <select
+                                                className="w-full rounded-md border border-zinc-300 px-4 py-2"
+                                                value={riskFormData.targetUser}
+                                                onChange={e => setRiskFormData({ ...riskFormData, targetUser: e.target.value })}
+                                            >
+                                                <option value="infant">영유아 (36개월 미만)</option>
+                                                <option value="child">어린이 (13세 미만)</option>
+                                                <option value="adult">일반 성인</option>
+                                                <option value="elderly">노약자</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 block text-sm font-medium text-zinc-700">주요 재질</label>
+                                            <input
+                                                required
+                                                className="w-full rounded-md border border-zinc-300 px-4 py-2"
+                                                value={riskFormData.mainMaterials}
+                                                onChange={e => setRiskFormData({ ...riskFormData, mainMaterials: e.target.value })}
+                                                placeholder="예: ABS 수지, 실리콘"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 block text-sm font-medium text-zinc-700">동력원</label>
+                                            <select
+                                                className="w-full rounded-md border border-zinc-300 px-4 py-2"
+                                                value={riskFormData.powerSource}
+                                                onChange={e => setRiskFormData({ ...riskFormData, powerSource: e.target.value })}
+                                            >
+                                                <option value="battery">배터리 (충전/건전지)</option>
+                                                <option value="plug">AC 전원 플러그</option>
+                                                <option value="none">동력원 없음 (수동)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-end pt-4">
+                                        <button
+                                            type="submit"
+                                            disabled={step === "analyzing"}
+                                            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-6 py-3 font-semibold text-white shadow-md hover:bg-indigo-700 transition disabled:opacity-50"
+                                        >
+                                            {step === "analyzing" ? (
+                                                <>
+                                                    <Loader2 className="h-5 w-5 animate-spin" /> 평가 중...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <AlertTriangle className="h-5 w-5" /> 위험성 평가 시작
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </form>
+                            ) : (
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.98 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    className="space-y-6"
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-xl font-bold text-zinc-900">🛡️ 위험성 평가 결과</h3>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setRiskResult(null)}
+                                                className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-900"
+                                            >
+                                                다시 평가하기
+                                            </button>
+                                            <button
+                                                onClick={handleSaveRisk}
+                                                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700"
+                                            >
+                                                <History className="h-4 w-4" /> 결과 저장
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className={`rounded-xl border p-6 ${riskResult.overall_risk_level === 'Critical' ? 'bg-red-50 border-red-200 text-red-900' :
+                                        riskResult.overall_risk_level === 'High' ? 'bg-orange-50 border-orange-200 text-orange-900' :
+                                            riskResult.overall_risk_level === 'Medium' ? 'bg-amber-50 border-amber-200 text-amber-900' :
+                                                'bg-green-50 border-green-200 text-green-900'
+                                        }`}>
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <AlertTriangle className="h-6 w-6" />
+                                            <span className="text-lg font-bold">종합 위험 등급: {riskResult.overall_risk_level}</span>
+                                        </div>
+                                        <p className="text-sm leading-relaxed">{riskResult.summary}</p>
+                                    </div>
+
+                                    <div className="rounded-xl border bg-white overflow-hidden">
+                                        <div className="bg-zinc-50 px-6 py-3 border-b">
+                                            <h4 className="font-bold text-zinc-900">상세 위해 요소 분석 (Hazard Analysis)</h4>
+                                        </div>
+                                        <div className="divide-y text-sm">
+                                            {riskResult.hazard_analysis.map((hazard, idx) => (
+                                                <div key={idx} className="p-6 space-y-3">
+                                                    <div className="flex items-start justify-between">
+                                                        <div>
+                                                            <span className="font-bold text-zinc-900 block mb-1">{hazard.hazard_item}</span>
+                                                            <p className="text-zinc-500">{hazard.potential_risk}</p>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <div className="text-xs font-bold text-zinc-400 mb-1">Risk Score</div>
+                                                            <div className={`text-2xl font-black ${hazard.risk_score >= 15 ? 'text-red-500' :
+                                                                hazard.risk_score >= 8 ? 'text-orange-500' :
+                                                                    'text-amber-500'
+                                                                }`}>{hazard.risk_score}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="bg-zinc-50 rounded-lg p-3 text-zinc-600">
+                                                        <strong className="text-xs text-zinc-900 block mb-1">저감 전략 (Mitigation Strategy)</strong>
+                                                        {hazard.mitigation_strategy}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid md:grid-cols-2 gap-6">
+                                        <div className="rounded-xl border bg-white p-6">
+                                            <h4 className="font-bold text-zinc-900 mb-4">관련 ISO 표준</h4>
+                                            <div className="flex flex-wrap gap-2">
+                                                {riskResult.applicable_iso_standards.map((std, idx) => (
+                                                    <span key={idx} className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-bold border border-blue-100 italic">
+                                                        {std}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="rounded-xl border bg-white p-6 text-sm">
+                                            <h4 className="font-bold text-zinc-900 mb-4">권장 인증 로드맵</h4>
+                                            <div className="space-y-2">
+                                                {riskResult.certification_roadmap.map((step, idx) => (
+                                                    <div key={idx} className="flex items-center gap-2">
+                                                        <div className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
+                                                        <span className="text-zinc-600">{step}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </div>
+                    )
+                    }
+
+                    {activeDetailedTool === 'smart_doc' && (
+                        <div className="max-w-4xl mx-auto">
+                            <div className="mb-6 text-center">
+                                <h2 className="text-3xl font-bold text-zinc-900 mb-2">📄 AI 스마트 서류 생성</h2>
+                                <p className="text-zinc-600">제품 정보를 입력하시면 공공기관 제출용 서류 초안을 AI가 신속하게 작성해 드립니다.</p>
+                            </div>
+
+                            <motion.form
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="rounded-2xl border bg-white p-10 shadow-xl space-y-8"
+                                onSubmit={(e) => {
+                                    e.preventDefault();
+                                    generateDocument(smartDocFormData.documentType, smartDocFormData.documentType, {
+                                        productName: smartDocFormData.productName,
+                                        category: smartDocFormData.category,
+                                        description: smartDocFormData.description
+                                    });
+                                }}
+                            >
+                                <div className="grid gap-8 md:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-bold text-zinc-700 ml-1">문서 종류 선택</label>
+                                        <select
+                                            className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-zinc-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                                            value={smartDocFormData.documentType}
+                                            onChange={e => setSmartDocFormData({ ...smartDocFormData, documentType: e.target.value })}
+                                        >
+                                            <option value="제품설명서">제품설명서 (Product Description)</option>
+                                            <option value="시험신청서">KC 인증 시험 신청서</option>
+                                            <option value="사후관리계획서">사후 관리 계획서</option>
+                                            <option value="공문">표준 업무 공문</option>
+                                            <option value="사용설명서">사용자 매뉴얼 초안</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-bold text-zinc-700 ml-1">제품명</label>
+                                        <input
+                                            required
+                                            className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                                            value={smartDocFormData.productName}
+                                            onChange={e => setSmartDocFormData({ ...smartDocFormData, productName: e.target.value })}
+                                            placeholder="예: 스마트 가습기 Pro"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-bold text-zinc-700 ml-1">카테고리</label>
+                                        <select
+                                            className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                                            value={smartDocFormData.category}
+                                            onChange={e => setSmartDocFormData({ ...smartDocFormData, category: e.target.value })}
+                                        >
+                                            <option value="electronics">전기/전자제품</option>
+                                            <option value="household">생활용품</option>
+                                            <option value="kids">어린이용품</option>
+                                            <option value="cosmetics">화장품</option>
+                                            <option value="medical">의료기기</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2 md:col-span-2">
+                                        <label className="text-sm font-bold text-zinc-700 ml-1">상세 사양 및 특징</label>
+                                        <textarea
+                                            required
+                                            rows={5}
+                                            className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all resize-none"
+                                            value={smartDocFormData.description}
+                                            onChange={e => setSmartDocFormData({ ...smartDocFormData, description: e.target.value })}
+                                            placeholder="제품의 주요 기능, 정격 전압, 배터리 유무, 재질 등을 적어주세요. 상세할수록 문서의 정확도가 높아집니다."
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-center pt-4">
+                                    <button
+                                        type="submit"
+                                        className="group flex items-center gap-3 rounded-2xl bg-indigo-600 px-10 py-4 font-bold text-white shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:scale-[1.02] active:scale-95 transition-all"
+                                    >
+                                        <Zap className="h-5 w-5 fill-current" />
+                                        문서 생성 시작하기
+                                    </button>
+                                </div>
+                            </motion.form>
+
+                            <div className="mt-8 rounded-xl bg-amber-50 p-5 border border-amber-100 flex gap-4">
+                                <Search className="h-6 w-6 text-amber-600 shrink-0" />
+                                <div className="text-sm text-amber-900 leading-relaxed">
+                                    <p className="font-bold mb-1">💡 팁: 더 정확한 서류 작성을 원하시나요?</p>
+                                    기존에 수행한 '종합 규제 진단' 결과 화면에서 <strong>AI 자동작성</strong> 버튼을 클릭하시면, 진단 데이터를 바탕으로 맞춤형 서류가 즉시 생성됩니다.
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {activeDetailedTool === 'global' && (
                         <div className="max-w-4xl mx-auto">
                             <div className="mb-6">
@@ -1855,13 +2363,31 @@ export default function DiagnosticPage() {
                             <div className="rounded-xl border bg-white p-8 shadow-sm">
                                 <div className="mb-6 flex items-center justify-between border-b pb-4">
                                     <h3 className="text-xl font-bold text-zinc-800">{generatedDoc.title}</h3>
-                                    <button className="flex items-center gap-2 rounded-md bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-200">
+                                    <button
+                                        onClick={downloadDocPDF}
+                                        className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors shadow-sm"
+                                    >
                                         <Download className="h-4 w-4" />
-                                        다운로드 (Word)
+                                        PDF 다운로드
                                     </button>
                                 </div>
-                                <div className="prose max-w-none whitespace-pre-wrap text-zinc-700">
-                                    {generatedDoc.content}
+                                <div className="space-y-8">
+                                    {generatedDoc.sections && generatedDoc.sections.length > 0 ? (
+                                        generatedDoc.sections.map((section, idx) => (
+                                            <div key={idx}>
+                                                <h4 className="text-lg font-bold text-zinc-900 border-l-4 border-blue-500 pl-3 mb-3">{section.heading}</h4>
+                                                <p className="text-zinc-700 leading-relaxed whitespace-pre-wrap">{section.body}</p>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="prose max-w-none whitespace-pre-wrap text-zinc-700">
+                                            {generatedDoc.content}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="mt-12 rounded-lg bg-zinc-50 p-4 text-xs text-zinc-500 border border-zinc-100">
+                                    <p className="font-bold mb-1">⚠️ 법적 고지사항 (Legal Disclaimer)</p>
+                                    본 서류는 Certi-Mate AI 전문 행정 지원 시스템에 의해 자동 생성된 초안입니다. 관련 법규의 개정이나 제품의 세부 사양에 따라 실제 제출 서류와 차이가 있을 수 있으므로, 반드시 유관 공공기관 제출 전 행정사 또는 법률 전문가의 최종 검토를 권장합니다.
                                 </div>
                             </div>
                         </motion.div>
