@@ -17,7 +17,7 @@ type Mode = "hub" | "general" | "detailed";
 type GeneralStep = "input" | "analyzing" | "result" | "generating_doc" | "doc_result";
 
 // Detailed Diagnostic Tool Types
-type DetailedTool = "deep_scan" | "risk_assessment" | "smart_doc" | "label_maker" | "ip_check" | "global_roadmap" | "global" | "risk";
+type DetailedTool = "deep_scan" | "risk_assessment" | "smart_doc" | "label_maker" | "ip_check" | "global_roadmap" | "global" | "risk" | "subsidy";
 
 interface Certification {
     name: string;
@@ -47,6 +47,7 @@ interface GeneratedDoc {
 }
 
 interface LabelResult {
+    id?: string;
     product_name: string;
     model_name: string;
     capacity: string;
@@ -71,6 +72,34 @@ interface GlobalRoadmapResult {
     estimated_cost: string;
     process_steps: string[];
     customs_tips: string;
+}
+
+interface IpCheckResult {
+    analysis_summary: string;
+    trademark_risk_score: number;
+    copyright_risk_score: number;
+    similar_brands: Array<{
+        name: string;
+        similarity: string;
+        potential_conflict: string;
+    }>;
+    legal_advice: string;
+    next_steps: string[];
+}
+
+interface SubsidyResult {
+    analysis_summary: string;
+    recommended_subsidies: Array<{
+        title: string;
+        agency: string;
+        budget: string;
+        deadline: string;
+        eligibility: string;
+        description: string;
+        relevance_score: number;
+        link: string;
+    }>;
+    strategy_advice: string;
 }
 
 // --- Main Component ---
@@ -112,6 +141,25 @@ export default function DiagnosticPage() {
         description: "",
     });
     const [globalResult, setGlobalResult] = useState<GlobalRoadmapResult | null>(null);
+
+    // IP Check States
+    const [ipFormData, setIpFormData] = useState({
+        productName: "",
+        category: "electronics",
+        description: "",
+    });
+    const [ipResult, setIpResult] = useState<IpCheckResult | null>(null);
+
+    // Subsidy Matching States
+    const [subsidyFormData, setSubsidyFormData] = useState({
+        productName: "",
+        category: "electronics",
+        companyStage: "initial", // initial, growth, mature
+        location: "Seoul",
+        interestArea: "certification", // certification, export, rnd, marketing
+    });
+    const [subsidyResult, setSubsidyResult] = useState<SubsidyResult | null>(null);
+
     const [userRole, setUserRole] = useState<"admin" | "user">("user");
 
     useEffect(() => {
@@ -188,15 +236,62 @@ export default function DiagnosticPage() {
     }
 
     const loadHistoryItem = (item: any) => {
-        setResult(item.result_json);
-        setFormData({
-            productName: item.product_name,
-            category: item.category,
-            description: item.description || "",
-        });
+        if (item.tool_type === 'label') {
+            setLabelResult(item.result_json);
+            setLabelFormData({
+                productName: item.result_json.product_name,
+                productType: item.result_json.model_name,
+                weight: item.result_json.capacity,
+                manufacturer: item.result_json.manufacturer,
+                precautions: item.result_json.precautions,
+            });
+            setMode("detailed");
+            setActiveDetailedTool("label_maker");
+            setStep("result");
+        } else if (item.tool_type === 'global') {
+            setGlobalResult(item.result_json);
+            setGlobalFormData({
+                productName: item.product_name,
+                category: item.category,
+                targetCountry: item.result_json.target_country,
+                description: item.description || "",
+            });
+            setMode("detailed");
+            setActiveDetailedTool("global");
+            setStep("result");
+        } else if (item.tool_type === 'ip_check') {
+            setIpResult(item.result_json);
+            setIpFormData({
+                productName: item.product_name,
+                category: item.category,
+                description: item.description || "",
+            });
+            setMode("detailed");
+            setActiveDetailedTool("ip_check");
+            setStep("result");
+        } else if (item.tool_type === 'subsidy') {
+            setSubsidyResult(item.result_json);
+            setSubsidyFormData({
+                productName: item.product_name,
+                category: item.category,
+                companyStage: item.result_json.company_stage || "initial",
+                location: item.result_json.location || "Seoul",
+                interestArea: item.result_json.interest_area || "certification",
+            });
+            setMode("detailed");
+            setActiveDetailedTool("subsidy");
+            setStep("result");
+        } else {
+            setResult(item.result_json);
+            setFormData({
+                productName: item.product_name,
+                category: item.category,
+                description: item.description || "",
+            });
+            setMode("general");
+            setStep("result");
+        }
         setCurrentId(item.id);
-        setMode("general");
-        setStep("result");
     };
 
     const deleteHistoryItem = async (e: React.MouseEvent, id: string) => {
@@ -312,6 +407,41 @@ export default function DiagnosticPage() {
         }
     };
 
+    const handleSaveLabel = async () => {
+        if (!labelResult) return;
+
+        try {
+            const supabase = createSupabaseClient();
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (!user) {
+                alert("로그인이 필요합니다.");
+                return;
+            }
+
+            const { data, error } = await (supabase as any).from('diagnostic_results').insert({
+                user_id: user.id,
+                product_name: labelResult.product_name,
+                description: `${labelResult.model_name} - 표시사항 제작`,
+                category: 'label',
+                result_json: labelResult,
+                tool_type: 'label'
+            }).select();
+
+            if (error) throw error;
+
+            if (data && data[0]) {
+                setCurrentId(data[0].id);
+            }
+
+            alert("라벨 도안이 성공적으로 저장되었습니다.");
+            loadHistory();
+        } catch (e) {
+            console.error(e);
+            alert("저장 중 오류가 발생했습니다.");
+        }
+    };
+
     const handleGlobalSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setStep("analyzing");
@@ -336,6 +466,170 @@ export default function DiagnosticPage() {
             console.error(err);
             setError("로드맵 생성 중 오류가 발생했습니다.");
             setStep("result");
+        }
+    };
+
+    const handleIpCheckSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setStep("analyzing");
+        setError(null);
+
+        try {
+            const supabase = createSupabaseClient();
+            const { data: { user } } = await supabase.auth.getUser();
+
+            const response = await fetch("/api/diagnostic/ip-check", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ...ipFormData, userId: user?.id }),
+            });
+
+            if (!response.ok) throw new Error("Failed to analyze IP risks");
+
+            const data: IpCheckResult = await response.json();
+            setIpResult(data);
+            setStep("result");
+        } catch (err) {
+            console.error(err);
+            setError("지재권 검사 중 오류가 발생했습니다.");
+            setStep("result");
+        }
+    };
+
+    const handleSaveIpCheck = async () => {
+        if (!ipResult) return;
+
+        try {
+            const supabase = createSupabaseClient();
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (!user) {
+                alert("로그인이 필요합니다.");
+                return;
+            }
+
+            const { data, error } = await (supabase as any).from('diagnostic_results').insert({
+                user_id: user.id,
+                product_name: ipFormData.productName,
+                description: ipFormData.description,
+                category: ipFormData.category,
+                result_json: ipResult,
+                tool_type: 'ip_check'
+            }).select();
+
+            if (error) throw error;
+
+            if (data && data[0]) {
+                setCurrentId(data[0].id);
+            }
+
+            alert("지재권 검사 결과가 성공적으로 저장되었습니다.");
+            loadHistory();
+        } catch (e) {
+            console.error(e);
+            alert("저장 중 오류가 발생했습니다.");
+        }
+    };
+
+    const handleSaveGlobal = async () => {
+        if (!globalResult) return;
+
+        try {
+            const supabase = createSupabaseClient();
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (!user) {
+                alert("로그인이 필요합니다.");
+                return;
+            }
+
+            const { data, error } = await (supabase as any).from('diagnostic_results').insert({
+                user_id: user.id,
+                product_name: globalFormData.productName,
+                description: `${globalResult.target_country} 수출 로드맵 - ${globalFormData.category}`,
+                category: globalFormData.category,
+                result_json: globalResult,
+                tool_type: 'global'
+            }).select();
+
+            if (error) throw error;
+
+            if (data && data[0]) {
+                setCurrentId(data[0].id);
+            }
+
+            alert("수출 로드맵이 성공적으로 저장되었습니다.");
+            loadHistory();
+        } catch (e) {
+            console.error(e);
+            alert("저장 중 오류가 발생했습니다.");
+        }
+    };
+
+    const handleSubsidySubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setStep("analyzing");
+        setError(null);
+
+        try {
+            const supabase = createSupabaseClient();
+            const { data: { user } } = await supabase.auth.getUser();
+
+            const response = await fetch("/api/diagnostic/subsidy", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ...subsidyFormData, userId: user?.id }),
+            });
+
+            if (!response.ok) throw new Error("Failed to match subsidies");
+
+            const data: SubsidyResult = await response.json();
+            setSubsidyResult(data);
+            setStep("result");
+        } catch (err) {
+            console.error(err);
+            setError("지원사업 매칭 중 오류가 발생했습니다.");
+            setStep("result");
+        }
+    };
+
+    const handleSaveSubsidy = async () => {
+        if (!subsidyResult) return;
+
+        try {
+            const supabase = createSupabaseClient();
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (!user) {
+                alert("로그인이 필요합니다.");
+                return;
+            }
+
+            const { data, error } = await (supabase as any).from('diagnostic_results').insert({
+                user_id: user.id,
+                product_name: subsidyFormData.productName,
+                description: `정부지원사업 매칭 - ${subsidyFormData.interestArea}`,
+                category: subsidyFormData.category,
+                result_json: {
+                    ...subsidyResult,
+                    company_stage: subsidyFormData.companyStage,
+                    location: subsidyFormData.location,
+                    interest_area: subsidyFormData.interestArea
+                },
+                tool_type: 'subsidy'
+            }).select();
+
+            if (error) throw error;
+
+            if (data && data[0]) {
+                setCurrentId(data[0].id);
+            }
+
+            alert("지원사업 매칭 결과가 성공적으로 저장되었습니다.");
+            loadHistory();
+        } catch (e) {
+            console.error(e);
+            alert("저장 중 오류가 발생했습니다.");
         }
     };
 
@@ -701,10 +995,10 @@ export default function DiagnosticPage() {
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {[
                         { id: "label_maker", title: "라벨 표시사항 제작", icon: Printer, desc: "포장재질과 용량에 맞춘 필수 법적 기재사항(라벨) 도안을 생성합니다.", blocked: false }, // Open this for demo
-                        { id: "deep_scan", title: "심층 정밀 진단", icon: scanIcon, desc: "부품 리스트(BOM)와 회로도를 기반으로 KC 인증 항목을 정밀하게 분석합니다.", blocked: true },
+                        { id: "subsidy", title: "정부지원사업 매칭", icon: Zap, desc: "인증 비용, R&D, 해외 판로 개척 등 현재 참여 가능한 정부 지원 프로그램을 매칭합니다.", blocked: false },
                         { id: "risk", title: "위험성 평가 (ISO)", icon: AlertTriangle, desc: "제품의 타겟 연령과 사용 환경에 따른 잠재적 위험 요소를 평가합니다.", blocked: true },
                         { id: "smart_doc", title: "스마트 서류 생성", icon: FileText, desc: "시험 신청서, 제품 설명서 등 복잡한 공문서 초안을 AI가 작성합니다.", blocked: true },
-                        { id: "ip_check", title: "지재권 침해 분석", icon: Scale, desc: "제품 디자인이나 상표가 기존 특허권을 침해하는지 대조 분석합니다.", blocked: true },
+                        { id: "ip_check", title: "지재권 침해 분석", icon: Scale, desc: "제품 디자인이나 상표가 기존 특허권을 침해하는지 대조 분석합니다.", blocked: false },
                         { id: "global", title: "글로벌 수출 로드맵", icon: Globe, desc: "미국(FDA), 유럽(CE) 등 해외 수출 시 필요한 국가별 인증 정보를 제공합니다.", blocked: false }, // Unlocked
                     ].map((item, idx) => (
                         <div
@@ -849,6 +1143,12 @@ export default function DiagnosticPage() {
                                                 다시 작성하기
                                             </button>
                                             <button
+                                                onClick={handleSaveLabel}
+                                                className="flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-100"
+                                            >
+                                                <History className="h-4 w-4" /> 저장하기
+                                            </button>
+                                            <button
                                                 onClick={downloadLabelPDF}
                                                 className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700"
                                             >
@@ -909,6 +1209,321 @@ export default function DiagnosticPage() {
                                     </div>
                                     <div className="mt-2 text-xs text-zinc-400 text-right">
                                         * PDF 다운로드 시 인터넷 연결이 필요합니다. (한글 폰트 다운로드)
+                                    </div>
+                                </motion.div>
+                            )}
+                        </div>
+                    )}
+
+                    {activeDetailedTool === 'subsidy' && (
+                        <div className="max-w-4xl mx-auto">
+                            <div className="mb-6">
+                                <h2 className="text-2xl font-bold text-zinc-900 mb-2">🎁 맞춤형 정부지원사업 매칭</h2>
+                                <p className="text-zinc-600">인증 비용 지원, 수출 바우처, R&D 자금 등 귀사에 가장 적합한 지원 사업을 찾아드립니다.</p>
+                            </div>
+
+                            {!subsidyResult ? (
+                                <form onSubmit={handleSubsidySubmit} className="space-y-6 rounded-xl border bg-white p-8 shadow-sm">
+                                    <div className="grid gap-6 md:grid-cols-2">
+                                        <div>
+                                            <label className="mb-2 block text-sm font-medium text-zinc-700">제품명/사업명</label>
+                                            <input
+                                                required
+                                                className="w-full rounded-md border border-zinc-300 px-4 py-2"
+                                                value={subsidyFormData.productName}
+                                                onChange={e => setSubsidyFormData({ ...subsidyFormData, productName: e.target.value })}
+                                                placeholder="예: AI 기반 교육용 키트"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 block text-sm font-medium text-zinc-700">기업 성장 단계</label>
+                                            <select
+                                                className="w-full rounded-md border border-zinc-300 px-4 py-2"
+                                                value={subsidyFormData.companyStage}
+                                                onChange={e => setSubsidyFormData({ ...subsidyFormData, companyStage: e.target.value })}
+                                            >
+                                                <option value="initial">예비창업 / 초기 (3년 미만)</option>
+                                                <option value="growth">도약 / 성장 (3~7년)</option>
+                                                <option value="mature">성숙 / 중견 (7년 이상)</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 block text-sm font-medium text-zinc-700">주요 관심 분야</label>
+                                            <select
+                                                className="w-full rounded-md border border-zinc-300 px-4 py-2"
+                                                value={subsidyFormData.interestArea}
+                                                onChange={e => setSubsidyFormData({ ...subsidyFormData, interestArea: e.target.value })}
+                                            >
+                                                <option value="certification">국내/외 인증 비용 지원</option>
+                                                <option value="export">해외 진출 및 수출 바우처</option>
+                                                <option value="rnd">연구개발(R&D) 자금</option>
+                                                <option value="marketing">마케팅 및 판로 개척</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 block text-sm font-medium text-zinc-700">기업 소재지</label>
+                                            <select
+                                                className="w-full rounded-md border border-zinc-300 px-4 py-2"
+                                                value={subsidyFormData.location}
+                                                onChange={e => setSubsidyFormData({ ...subsidyFormData, location: e.target.value })}
+                                            >
+                                                <option value="Seoul">서울특별시</option>
+                                                <option value="Gyeonggi">경기도</option>
+                                                <option value="Incheon">인천광역시</option>
+                                                <option value="Other">그 외 지역</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-end pt-4">
+                                        <button
+                                            type="submit"
+                                            disabled={step === "analyzing"}
+                                            className="flex items-center gap-2 rounded-lg bg-orange-600 px-6 py-3 font-semibold text-white shadow-md hover:bg-orange-700 transition disabled:opacity-50"
+                                        >
+                                            {step === "analyzing" ? (
+                                                <>
+                                                    <Loader2 className="h-5 w-5 animate-spin" /> 매칭 중...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Zap className="h-5 w-5" /> 맞춤 사업 찾기
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </form>
+                            ) : (
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.98 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    className="space-y-6"
+                                >
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="text-xl font-bold text-zinc-900">🎯 {subsidyFormData.productName} 맞춤형 지원사업</h3>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setSubsidyResult(null)}
+                                                className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-900"
+                                            >
+                                                다시 찾기
+                                            </button>
+                                            <button
+                                                onClick={handleSaveSubsidy}
+                                                className="flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-white hover:bg-orange-700"
+                                            >
+                                                <History className="h-4 w-4" /> 결과 저장
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-xl border border-orange-100 bg-orange-50 p-6">
+                                        <h4 className="font-bold text-orange-900 mb-2">분석 요약</h4>
+                                        <p className="text-sm text-orange-800 leading-relaxed">{subsidyResult.analysis_summary}</p>
+                                    </div>
+
+                                    <div className="grid gap-4">
+                                        {subsidyResult.recommended_subsidies.map((sub, idx) => (
+                                            <div key={idx} className="group overflow-hidden rounded-xl border bg-white p-6 shadow-sm hover:border-orange-300 transition-all">
+                                                <div className="flex items-start justify-between mb-4">
+                                                    <div>
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="text-xs font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded uppercase">
+                                                                {sub.agency}
+                                                            </span>
+                                                            <span className="text-xs font-medium text-zinc-500">매칭률 {sub.relevance_score}%</span>
+                                                        </div>
+                                                        <h4 className="text-lg font-bold text-zinc-900 group-hover:text-orange-600 transition-colors">{sub.title}</h4>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <div className="text-sm font-bold text-zinc-900">{sub.budget}</div>
+                                                        <div className="text-xs text-zinc-500">{sub.deadline}</div>
+                                                    </div>
+                                                </div>
+                                                <div className="grid md:grid-cols-2 gap-4 mb-4">
+                                                    <div className="text-xs">
+                                                        <span className="block font-bold text-zinc-700 mb-1">지원 대상</span>
+                                                        <p className="text-zinc-500">{sub.eligibility}</p>
+                                                    </div>
+                                                    <div className="text-xs">
+                                                        <span className="block font-bold text-zinc-700 mb-1">지원 내용</span>
+                                                        <p className="text-zinc-500">{sub.description}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex justify-end order-t pt-4">
+                                                    <button className="text-xs font-bold text-blue-600 hover:underline">
+                                                        자세히 보기 (Bizinfo로 이동) →
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="rounded-xl border bg-zinc-900 p-6 text-white">
+                                        <h4 className="flex items-center gap-2 font-bold mb-4">
+                                            <Shield className="h-5 w-5 text-orange-400" /> 전문가 선정 전략
+                                        </h4>
+                                        <p className="text-sm text-zinc-300 leading-relaxed">{subsidyResult.strategy_advice}</p>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </div>
+                    )}
+
+                    {activeDetailedTool === 'ip_check' && (
+                        <div className="max-w-4xl mx-auto">
+                            <div className="mb-6">
+                                <h2 className="text-2xl font-bold text-zinc-900 mb-2">⚖️ 지재권 침해 분석 (IP Risk Check)</h2>
+                                <p className="text-zinc-600">제품명 및 디자인이 기존 상표권이나 저작권을 침해할 가능성을 AI로 진단합니다.</p>
+                            </div>
+
+                            {!ipResult ? (
+                                <form onSubmit={handleIpCheckSubmit} className="space-y-6 rounded-xl border bg-white p-8 shadow-sm">
+                                    <div className="grid gap-6 md:grid-cols-2">
+                                        <div>
+                                            <label className="mb-2 block text-sm font-medium text-zinc-700">검토 제품/브랜드명</label>
+                                            <input
+                                                required
+                                                className="w-full rounded-md border border-zinc-300 px-4 py-2"
+                                                value={ipFormData.productName}
+                                                onChange={e => setIpFormData({ ...ipFormData, productName: e.target.value })}
+                                                placeholder="예: 갤럭시 버즈 프로"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 block text-sm font-medium text-zinc-700">카테고리</label>
+                                            <select
+                                                className="w-full rounded-md border border-zinc-300 px-4 py-2"
+                                                value={ipFormData.category}
+                                                onChange={(e) => setIpFormData({ ...ipFormData, category: e.target.value })}
+                                            >
+                                                <option value="electronics">IT/가전</option>
+                                                <option value="fashion">패션/잡화</option>
+                                                <option value="food">식품/음료</option>
+                                                <option value="cosmetics">화장품</option>
+                                                <option value="kids">캐릭터/완구</option>
+                                                <option value="design">산업 디자인</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="mb-2 block text-sm font-medium text-zinc-700">상세 설명 (기능 및 특징)</label>
+                                        <textarea
+                                            required
+                                            className="w-full rounded-md border border-zinc-300 px-4 py-2"
+                                            rows={4}
+                                            value={ipFormData.description}
+                                            onChange={e => setIpFormData({ ...ipFormData, description: e.target.value })}
+                                            placeholder="제품의 디자인적 특징이나 사용된 기술 요소를 설명해주세요."
+                                        />
+                                    </div>
+
+                                    <div className="flex justify-end pt-4">
+                                        <button
+                                            type="submit"
+                                            disabled={step === "analyzing"}
+                                            className="flex items-center gap-2 rounded-lg bg-rose-600 px-6 py-3 font-semibold text-white shadow-md hover:bg-rose-700 transition disabled:opacity-50"
+                                        >
+                                            {step === "analyzing" ? (
+                                                <>
+                                                    <Loader2 className="h-5 w-5 animate-spin" /> 분석 중...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Search className="h-5 w-5" /> 무료 AI 분석 시작
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </form>
+                            ) : (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="space-y-6"
+                                >
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h3 className="text-xl font-bold text-zinc-900">🔍 IP 침해 위험 분석 결과</h3>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setIpResult(null)}
+                                                className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-900"
+                                            >
+                                                다시 검사하기
+                                            </button>
+                                            <button
+                                                onClick={handleSaveIpCheck}
+                                                className="flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700"
+                                            >
+                                                <History className="h-4 w-4" /> 결과 저장
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Risk Scores */}
+                                    <div className="grid md:grid-cols-2 gap-4">
+                                        <div className="rounded-xl border bg-white p-6 shadow-sm flex flex-col items-center justify-center text-center">
+                                            <span className="text-sm font-medium text-zinc-500 mb-2">상표권 침해 위험</span>
+                                            <div className="text-4xl font-black text-rose-600">{ipResult.trademark_risk_score}%</div>
+                                            <div className="mt-2 w-full bg-zinc-100 h-2 rounded-full overflow-hidden">
+                                                <div className="bg-rose-600 h-full" style={{ width: `${ipResult.trademark_risk_score}%` }}></div>
+                                            </div>
+                                        </div>
+                                        <div className="rounded-xl border bg-white p-6 shadow-sm flex flex-col items-center justify-center text-center">
+                                            <span className="text-sm font-medium text-zinc-500 mb-2">저작권 침해 위험</span>
+                                            <div className="text-4xl font-black text-blue-600">{ipResult.copyright_risk_score}%</div>
+                                            <div className="mt-2 w-full bg-zinc-100 h-2 rounded-full overflow-hidden">
+                                                <div className="bg-blue-600 h-full" style={{ width: `${ipResult.copyright_risk_score}%` }}></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-xl border bg-white p-6 shadow-sm">
+                                        <h4 className="font-bold text-zinc-900 mb-3">심층 분석 요약</h4>
+                                        <p className="text-sm text-zinc-600 leading-relaxed">{ipResult.analysis_summary}</p>
+                                    </div>
+
+                                    {/* Similar Brands */}
+                                    <div className="rounded-xl border bg-white p-6 shadow-sm">
+                                        <h4 className="font-bold text-zinc-900 mb-4">유사 상표/디자인 대조</h4>
+                                        <div className="grid gap-3">
+                                            {ipResult.similar_brands.map((brand, idx) => (
+                                                <div key={idx} className="flex flex-col gap-1 p-3 rounded-lg border border-zinc-100 bg-zinc-50">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="font-bold text-zinc-900">{brand.name}</span>
+                                                        <span className="text-[10px] bg-white px-2 py-0.5 rounded border border-zinc-200 text-zinc-500">{brand.similarity}</span>
+                                                    </div>
+                                                    <p className="text-xs text-zinc-500">{brand.potential_conflict}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Legal Advice & Steps */}
+                                    <div className="grid md:grid-cols-2 gap-6">
+                                        <div className="rounded-xl border border-rose-100 bg-rose-50 p-6">
+                                            <h4 className="flex items-center gap-2 font-bold text-rose-900 mb-4">
+                                                <Scale className="h-5 w-5" /> 법적 권고 사항
+                                            </h4>
+                                            <p className="text-sm text-rose-800 leading-relaxed">{ipResult.legal_advice}</p>
+                                        </div>
+                                        <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+                                            <h4 className="flex items-center gap-2 font-bold text-zinc-900 mb-4">
+                                                <CheckCircle className="h-5 w-5 text-green-500" /> 향후 조치 단계
+                                            </h4>
+                                            <ul className="space-y-2">
+                                                {ipResult.next_steps.map((step, idx) => (
+                                                    <li key={idx} className="flex items-start gap-2 text-xs text-zinc-600">
+                                                        <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-300" />
+                                                        {step}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <div className="bg-amber-50 p-4 rounded-lg flex gap-3 text-xs text-amber-800 border border-amber-100">
+                                        <AlertTriangle className="h-4 w-4 shrink-0 transition-transform" />
+                                        <p>본 결과는 AI에 의한 정성적 분석이며, 실제 법적 효력을 갖지 않습니다. 중요한 상표 등록 및 디자인 출원 전 반드시 변리사 등 전문가와 상의하시기 바랍니다.</p>
                                     </div>
                                 </motion.div>
                             )}
@@ -1005,14 +1620,26 @@ export default function DiagnosticPage() {
                                 >
                                     <div className="flex items-center justify-between mb-2">
                                         <h3 className="text-xl font-bold text-zinc-900">
-                                            🇺🇸 {globalResult.target_country} 수출 로드맵
+                                            {globalResult.target_country === 'USA' ? '🇺🇸' :
+                                                globalResult.target_country === 'EU' ? '🇪🇺' :
+                                                    globalResult.target_country === 'Japan' ? '🇯🇵' :
+                                                        globalResult.target_country === 'China' ? '🇨🇳' :
+                                                            globalResult.target_country === 'Vietnam' ? '🇻🇳' : '🌍'} {globalResult.target_country} 수출 로드맵
                                         </h3>
-                                        <button
-                                            onClick={() => setGlobalResult(null)}
-                                            className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-900"
-                                        >
-                                            다른 국가 확인하기
-                                        </button>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setGlobalResult(null)}
+                                                className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-900"
+                                            >
+                                                다른 국가 확인하기
+                                            </button>
+                                            <button
+                                                onClick={handleSaveGlobal}
+                                                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700"
+                                            >
+                                                <History className="h-4 w-4" /> 결과 저장
+                                            </button>
+                                        </div>
                                     </div>
 
                                     {/* Key Certifications */}
