@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Bot, CheckCircle, FileText, ShieldCheck, Zap, Globe, Lock, Loader2, Tag, Search, Printer, Scale, MapPin } from "lucide-react";
+import { ArrowRight, Bot, CheckCircle, FileText, ShieldCheck, Zap, Globe, Lock, Loader2, Tag, Search, Printer, Scale, MapPin, AlertTriangle } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { createSupabaseClient } from "../lib/supabaseClient";
@@ -55,67 +55,72 @@ export default function Home() {
 
   const services = [
     {
-      icon: <Search className="h-6 w-6 text-white" />,
+      icon: <FileText className="h-6 w-6 text-white" />,
       color: "bg-blue-600 shadow-blue-200",
-      title: "아이템 인증 진단",
-      copy: "내 제품, 인증이 필요할까?",
-      desc: "키워드나 제품 사진만으로 필수 인증(KC, 전파법 등) 여부와 예상 비용을 1분 만에 진단합니다.",
-      tags: ["#초기창업", "#리스크체크"],
-      badge: "인기",
-      cta: "지금 진단하기",
-      link: "/dashboard/diagnostic"
+      title: "스마트 서류 생성",
+      copy: "복잡한 공문서, AI가 대신 써드려요",
+      desc: "제품 설명서, 시험 신청서, 사외 공문 등 까다로운 행정 서류 초안을 표준 양식에 맞춰 자동 생성합니다.",
+      tags: ["#행정자동화", "#시간단축"],
+      badge: "핵심",
+      cta: "문서 생성하기",
+      link: "/dashboard/diagnostic",
+      id: "smart_doc"
     },
     {
-      icon: <FileText className="h-6 w-6 text-white" />,
+      icon: <Zap className="h-6 w-6 text-white" />,
       color: "bg-indigo-600 shadow-indigo-200",
-      title: "스마트 서류 생성",
-      copy: "어려운 신청서, AI가 대신 써드려요",
-      desc: "제품 설명서, 사유서, 성분표 등 복잡한 공문서 초안을 표준 양식에 맞춰 자동 생성합니다.",
-      tags: ["#시간단축", "#자동작성"],
-      badge: "신규",
-      cta: "문서 만들기",
-      link: "/dashboard/diagnostic"
+      title: "정부지원사업 매칭",
+      copy: "인증 비용, 나라에서 지원받으세요",
+      desc: "인증 비용 지원, R&D 자금, 수출 바우처 등 현재 신청 가능한 정부 프로그램을 기업 맞춤형으로 매칭합니다.",
+      tags: ["#비용절감", "#정부지원금"],
+      badge: "추천",
+      cta: "지원사업 찾기",
+      link: "/dashboard/diagnostic",
+      id: "subsidy"
+    },
+    {
+      icon: <AlertTriangle className="h-6 w-6 text-white" />,
+      color: "bg-amber-500 shadow-amber-200",
+      title: "위험성 평가 (ISO)",
+      copy: "글로벌 안전 기준에 따른 선제적 대응",
+      desc: "제품의 타겟 연령과 사용 환경에 따른 잠재적 위험 요소를 ISO 표준에 따라 평가하고 저감 전략을 제안합니다.",
+      tags: ["#안전성평가", "#글로벌표준"],
+      cta: "위험성 체크",
+      link: "/dashboard/diagnostic",
+      id: "risk"
     },
     {
       icon: <Printer className="h-6 w-6 text-white" />,
       color: "bg-violet-600 shadow-violet-200",
       title: "표시사항(라벨) 메이커",
       copy: "법적 표시사항, 디자인까지 한 번에",
-      desc: "품목별 필수 기재 사항이 포함된 제품 라벨을 규격에 맞춰 생성하고 즉시 출력 가능한 파일을 제공합니다.",
+      desc: "품목별 필수 기재 사항(라벨)을 규격에 맞춰 생성하고 즉시 출력 가능한 최적화된 도안 파일을 제공합니다.",
       tags: ["#라벨링", "#완제품준비"],
-      cta: "라벨 생성하기",
-      link: "/dashboard" // Placeholder
+      cta: "라벨 제작하기",
+      link: "/dashboard/diagnostic",
+      id: "label_maker"
     },
     {
       icon: <Scale className="h-6 w-6 text-white" />,
       color: "bg-rose-500 shadow-rose-200",
-      title: "저작권·상표권 검사",
+      title: "지재권 침해 분석",
       copy: "침해 걱정 없는 안전한 판매",
-      desc: "3D 모델링이나 브랜드 로고가 기존 저작권이나 상표권을 침해하는지 AI로 대조 분석합니다.",
+      desc: "제품 디자인이나 브랜드가 기존 상표권, 저작권을 침해하는지 AI 기반 대조 분석으로 리스크를 차단합니다.",
       tags: ["#지식재산권", "#안전판매"],
-      cta: "권리 분석하기",
-      link: "/dashboard" // Placeholder
+      cta: "침해 분석하기",
+      link: "/dashboard/diagnostic",
+      id: "ip_check"
     },
     {
       icon: <Globe className="h-6 w-6 text-white" />,
       color: "bg-teal-500 shadow-teal-200",
-      title: "수출 인증 로드맵",
-      copy: "글로벌 시장 진출을 위한 첫걸음",
-      desc: "미국 FDA, 유럽 CE 등 진출 국가별 필수 규제와 인증 절차를 단계별 가이드로 제공합니다.",
-      tags: ["#해외수출", "#글로벌규제"],
-      badge: "추천",
-      cta: "로드맵 보기",
-      link: "/dashboard" // Placeholder
-    },
-    {
-      icon: <MapPin className="h-6 w-6 text-white" />,
-      color: "bg-amber-500 shadow-amber-200",
-      title: "정부지원사업 매칭",
-      copy: "인증 비용, 나라에서 지원받으세요",
-      desc: "현재 신청 가능한 인증 비용 지원금과 바우처 정보를 내 사업장 위치와 품목에 맞춰 추천합니다.",
-      tags: ["#비용절감", "#정부지원금"],
-      cta: "지원금 찾기",
-      link: "/dashboard" // Placeholder
+      title: "글로벌 수출 로드맵",
+      copy: "글로벌 시장 진출을 위한 내비게이션",
+      desc: "미국 FDA, 유럽 CE 등 진출 국가별 필수 규제와 인증 절차를 단계별 가이드 및 상세 비용 정보와 함께 제공합니다.",
+      tags: ["#해외수출", "#글로벌인증"],
+      cta: "로드맵 확인",
+      link: "/dashboard/diagnostic",
+      id: "global"
     },
   ];
 
@@ -319,7 +324,10 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <Link href={service.link} className="mt-auto w-full rounded-xl bg-zinc-900 px-4 py-3 text-center text-sm font-semibold text-white transition-all hover:bg-zinc-800 hover:scale-[1.02] active:scale-[0.98]">
+                  <Link
+                    href={service.id ? `/dashboard/diagnostic?tool=${service.id}` : service.link}
+                    className={`mt-auto w-full rounded-xl px-4 py-3 text-center text-sm font-semibold text-white transition-all hover:scale-[1.02] active:scale-[0.98] ${service.color.split(' ')[0]} hover:brightness-110 shadow-md`}
+                  >
                     {service.cta}
                   </Link>
                 </div>

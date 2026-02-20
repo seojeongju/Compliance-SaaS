@@ -207,8 +207,13 @@ export default function DiagnosticPage() {
         // Check for ID in URL to load specific diagnostic (from Documents page)
         const params = new URLSearchParams(window.location.search);
         const urlId = params.get('id');
+        const toolId = params.get('tool');
+
         if (urlId) {
             fetchAndLoadResult(urlId);
+        } else if (toolId) {
+            setMode("detailed");
+            setActiveDetailedTool(toolId as DetailedTool);
         }
     }, []);
 
@@ -1184,68 +1189,93 @@ export default function DiagnosticPage() {
 
     const DetailedGrid = () => (
         <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-right-8 duration-500">
-            <div className="flex items-center gap-4 mb-4">
-                <button
-                    onClick={() => {
-                        if (activeDetailedTool) {
-                            setActiveDetailedTool(null);
-                            setLabelResult(null);
-                        } else {
-                            setMode("hub");
-                        }
-                    }}
-                    className="flex items-center gap-1 text-zinc-500 hover:text-zinc-900 transition-colors"
-                >
-                    <ChevronRight className="h-4 w-4 rotate-180" /> {activeDetailedTool ? "도구 목록" : "이전으로"}
-                </button>
-                <div className="h-4 w-px bg-zinc-300"></div>
-                <h1 className="text-2xl font-bold text-zinc-900 flex items-center gap-2">
-                    <Shield className="h-6 w-6 text-indigo-600" /> 상세 진단 도구
-                </h1>
-                {userTier === 'free' && (
-                    <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-medium flex items-center gap-1">
-                        <Lock className="h-3 w-3" /> Pro 기능 잠김
-                    </span>
-                )}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-zinc-100">
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => {
+                            if (activeDetailedTool) {
+                                setActiveDetailedTool(null);
+                                setLabelResult(null);
+                            } else {
+                                setMode("hub");
+                            }
+                        }}
+                        className="flex h-10 w-10 items-center justify-center rounded-full bg-white border border-zinc-200 text-zinc-500 hover:text-zinc-900 hover:border-zinc-400 transition-all shadow-sm"
+                    >
+                        <ChevronRight className="h-5 w-5 rotate-180" />
+                    </button>
+                    <div>
+                        <div className="flex items-center gap-2 text-indigo-600 mb-1">
+                            <Shield className="h-4 w-4" />
+                            <span className="text-xs font-bold uppercase tracking-wider">Expert Analysis Tools</span>
+                        </div>
+                        <h1 className="text-3xl font-extrabold text-zinc-900">상세 진단 도구</h1>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    {userTier === 'free' ? (
+                        <div className="flex items-center gap-2 bg-amber-50 text-amber-700 px-4 py-2 rounded-xl text-sm font-bold border border-amber-100">
+                            <Lock className="h-4 w-4" /> Pro 등급 이용 기능
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 bg-green-50 text-green-700 px-4 py-2 rounded-xl text-sm font-bold border border-green-100">
+                            <CheckCircle className="h-4 w-4" /> Pro 멤버십 활성화됨
+                        </div>
+                    )}
+                </div>
             </div>
 
             {!activeDetailedTool ? (
                 // Detailed Tool Selection Grid
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {[
-                        { id: "label_maker", title: "라벨 표시사항 제작", icon: Printer, desc: "포장재질과 용량에 맞춘 필수 법적 기재사항(라벨) 도안을 생성합니다.", blocked: false }, // Open this for demo
-                        { id: "subsidy", title: "정부지원사업 매칭", icon: Zap, desc: "인증 비용, R&D, 해외 판로 개척 등 현재 참여 가능한 정부 지원 프로그램을 매칭합니다.", blocked: false },
-                        { id: "risk", title: "위험성 평가 (ISO)", icon: AlertTriangle, desc: "제품의 타겟 연령과 사용 환경에 따른 잠재적 위험 요소를 평가합니다.", blocked: false },
-                        { id: "smart_doc", title: "스마트 서류 생성", icon: FileText, desc: "시험 신청서, 제품 설명서 등 복잡한 공문서 초안을 AI가 작성합니다.", blocked: false },
-                        { id: "ip_check", title: "지재권 침해 분석", icon: Scale, desc: "제품 디자인이나 상표가 기존 특허권을 침해하는지 대조 분석합니다.", blocked: false },
-                        { id: "global", title: "글로벌 수출 로드맵", icon: Globe, desc: "미국(FDA), 유럽(CE) 등 해외 수출 시 필요한 국가별 인증 정보를 제공합니다.", blocked: false }, // Unlocked
+                        { id: "smart_doc", title: "스마트 서류 생성", icon: FileText, desc: "제품 설명서, 시험 신청서, 사외 공문 등 까다로운 행정 서류 초안을 표준 양식에 맞춰 자동 생성합니다.", color: "text-blue-600", bg: "bg-blue-50" },
+                        { id: "subsidy", title: "정부지원사업 매칭", icon: Zap, desc: "인증 비용 지원, R&D 자금, 수출 바우처 등 현재 신청 가능한 정부 프로그램을 기업 맞춤형으로 매칭합니다.", color: "text-indigo-600", bg: "bg-indigo-50" },
+                        { id: "risk", title: "위험성 평가 (ISO)", icon: AlertTriangle, desc: "제품의 타겟 연령과 사용 환경에 따른 잠재적 위험 요소를 ISO 표준에 따라 평가합니다.", color: "text-amber-600", bg: "bg-amber-50" },
+                        { id: "label_maker", title: "표시사항(라벨) 메이커", icon: Printer, desc: "품목별 필수 기재 사항(라벨)을 규격에 맞춰 생성하고 즉시 출력 가능한 최적화된 도안 파일을 제공합니다.", color: "text-violet-600", bg: "bg-violet-50" },
+                        { id: "ip_check", title: "지재권 침해 분석", icon: Scale, desc: "제품 디자인이나 브랜드가 기존 상표권, 저작권을 침해하는지 AI 기반 대조 분석으로 리스크를 차단합니다.", color: "text-rose-600", bg: "bg-rose-50" },
+                        { id: "global", title: "글로벌 수출 로드맵", icon: Globe, desc: "미국 FDA, 유럽 CE 등 진출 국가별 필수 규계와 인증 절차를 단계별 가이드 및 상세 비용 정보와 함께 제공합니다.", color: "text-teal-600", bg: "bg-teal-50" },
                     ].map((item, idx) => (
-                        <div
-                            key={idx}
-                            className={`group relative rounded-xl border bg-white p-6 transition-all ${userTier === 'pro'
-                                ? 'border-zinc-200 hover:border-indigo-500 hover:shadow-lg cursor-pointer'
+                        <motion.div
+                            key={item.id}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: idx * 0.05 }}
+                            className={`group relative rounded-2xl border bg-white p-8 transition-all overflow-hidden ${userTier === 'pro'
+                                ? 'border-zinc-200 hover:border-indigo-500 hover:shadow-2xl cursor-pointer hover:-translate-y-2'
                                 : 'border-zinc-100 bg-zinc-50'
                                 }`}
                             onClick={() => {
                                 if (userTier === 'free') {
                                     alert("Pro 등급으로 업그레이드하시면 이용할 수 있습니다.");
-                                } else if (item.blocked) {
-                                    alert(`${item.title} 기능은 준비 중입니다.`);
                                 } else {
                                     setActiveDetailedTool(item.id as DetailedTool);
                                 }
                             }}
                         >
-                            <div className={`mb-4 inline-flex h-12 w-12 items-center justify-center rounded-lg ${userTier === 'pro' ? 'bg-indigo-50 text-indigo-600' : 'bg-zinc-200 text-zinc-400'
+                            <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-gradient-to-br from-zinc-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                            <div className={`mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl transition-transform group-hover:scale-110 shadow-sm ${userTier === 'pro' ? item.bg + ' ' + item.color : 'bg-zinc-200 text-zinc-400'
                                 }`}>
-                                <item.icon className="h-6 w-6" />
+                                <item.icon className="h-7 w-7" />
                             </div>
-                            <h3 className={`text-lg font-bold mb-2 ${userTier === 'pro' ? 'text-zinc-900' : 'text-zinc-500'
+
+                            <h3 className={`text-xl font-bold mb-3 transition-colors ${userTier === 'pro' ? 'text-zinc-900 group-hover:text-indigo-600' : 'text-zinc-500'
                                 }`}>{item.title}</h3>
-                            <p className={`text-sm mb-4 leading-relaxed ${userTier === 'pro' ? 'text-zinc-600' : 'text-zinc-400'
+
+                            <p className={`text-sm mb-6 leading-relaxed transition-colors ${userTier === 'pro' ? 'text-zinc-600' : 'text-zinc-400'
                                 }`}>
                                 {item.desc}
                             </p>
+
+                            <div className={`flex items-center gap-2 font-bold text-sm transition-opacity ${userTier === 'pro' ? 'text-indigo-600' : 'text-zinc-300'}`}>
+                                {userTier === 'pro' ? (
+                                    <>바로 시작하기 <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" /></>
+                                ) : (
+                                    <>구독 후 이용 가능 <Lock className="h-3 w-3" /></>
+                                )}
+                            </div>
 
                             {userTier === 'free' && (
                                 <div className="absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity rounded-xl">
@@ -1254,13 +1284,7 @@ export default function DiagnosticPage() {
                                     </div>
                                 </div>
                             )}
-
-                            {userTier === 'pro' && !item.blocked && (
-                                <div className="mt-4 flex items-center text-sm font-medium text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
-                                    실행하기 <ChevronRight className="h-4 w-4 ml-1" />
-                                </div>
-                            )}
-                        </div>
+                        </motion.div>
                     ))}
                 </div>
             ) : (
@@ -2510,9 +2534,9 @@ export default function DiagnosticPage() {
                                 </button>
                                 <button
                                     onClick={handleSaveAndConsult}
-                                    className="rounded-lg bg-blue-600 px-6 py-2 font-bold text-white shadow hover:bg-blue-700 transition-colors"
+                                    className="rounded-lg bg-indigo-600 px-8 py-3 font-bold text-white shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:scale-[1.02] active:scale-95 transition-all"
                                 >
-                                    로드맵 저장 및 상담 신청
+                                    진단 결과 저장 및 전문가 상담
                                 </button>
                             </div>
                         </motion.div>
