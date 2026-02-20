@@ -126,7 +126,7 @@ export default function Home() {
                   href="/dashboard"
                   className="rounded-full bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow-lg hover:bg-blue-700 transition"
                 >
-                  대시보드로 이동
+                  즉시진단받기(대시보드바로가기)
                 </Link>
               </div>
             ) : (
@@ -184,7 +184,7 @@ export default function Home() {
                     href="/dashboard"
                     className="flex h-14 w-full items-center justify-center rounded-xl bg-blue-600 px-8 text-lg font-semibold text-white shadow-xl shadow-blue-200 transition hover:bg-blue-700 hover:-translate-y-1 sm:w-auto"
                   >
-                    대시보드 바로가기 <ArrowRight className="ml-2 h-5 w-5" />
+                    즉시진단받기(대시보드바로가기) <ArrowRight className="ml-2 h-5 w-5" />
                   </Link>
                 ) : (
                   <Link
@@ -279,7 +279,7 @@ export default function Home() {
                   href="/dashboard"
                   className="rounded-full bg-white px-8 py-4 text-lg font-bold text-zinc-900 hover:bg-zinc-100 hover:scale-105 transition-all"
                 >
-                  대시보드로 돌아가기
+                  즉시진단받기(대시보드바로가기)
                 </Link>
               ) : (
                 <Link
