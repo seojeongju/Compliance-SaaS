@@ -6,6 +6,27 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { createSupabaseClient } from "../lib/supabaseClient";
 
+const workflowSteps = [
+  {
+    title: "1. 아이템 진단",
+    desc: "품목과 사양을 입력하면 AI가 KC 인증, 전기안전 등 필수 규제 항목을 즉시 분석합니다.",
+    icon: <Search className="h-6 w-6" />,
+    color: "blue"
+  },
+  {
+    title: "2. 서류 자동 생성",
+    desc: "분석된 규제에 맞춰 시험 신청서, 제품 설명서 등 행정 서류를 표준 양식으로 자동 작성합니다.",
+    icon: <Bot className="h-6 w-6" />,
+    color: "indigo"
+  },
+  {
+    title: "3. 인증 및 수출 가이드",
+    desc: "라벨 도안 제작부터 해외 인증(CE, FDA) 로드맵, 정부 지원금 매칭까지 원스톱으로 지원합니다.",
+    icon: <Zap className="h-6 w-6" />,
+    color: "violet"
+  }
+];
+
 export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -204,16 +225,62 @@ export default function Home() {
           </div>
         </section>
 
+        {/* Brand Workflow Visualization Section */}
+        <section className="bg-white py-24 border-y border-zinc-100 relative overflow-hidden text-zinc-900 leading-normal tracking-normal border-collapse border-spacing-0">
+          <div className="absolute top-1/2 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-100 to-transparent -translate-y-1/2 hidden lg:block opacity-50" />
+
+          <div className="container mx-auto px-4 relative z-10">
+            <div className="text-center max-w-2xl mx-auto mb-20">
+              <h2 className="text-sm font-bold tracking-widest text-blue-600 uppercase">Process</h2>
+              <h3 className="mt-3 text-3xl font-bold text-zinc-900 sm:text-4xl">
+                아이디어에서 제품 출시까지,<br />
+                강력한 원스톱 규제 자동화
+              </h3>
+            </div>
+
+            <div className="grid lg:grid-cols-3 gap-12 lg:gap-8 max-w-5xl mx-auto">
+              {workflowSteps.map((step, idx) => (
+                <motion.div
+                  key={idx}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: idx * 0.2 }}
+                  className="relative flex flex-col items-center text-center p-6"
+                >
+                  <div className={`mb-8 flex h-20 w-20 items-center justify-center rounded-3xl bg-white shadow-2xl border border-zinc-50 group transition-transform hover:scale-110`}>
+                    <div className="text-blue-600 drop-shadow-sm">
+                      {step.icon}
+                    </div>
+                  </div>
+                  <h4 className="text-xl font-bold text-zinc-900 mb-4">{step.title}</h4>
+                  <p className="text-zinc-500 leading-relaxed text-sm">
+                    {step.desc}
+                  </p>
+
+                  {idx < workflowSteps.length - 1 && (
+                    <div className="hidden lg:block absolute top-[40px] -right-4 translate-x-1/2 z-20">
+                      <ArrowRight className="h-6 w-6 text-blue-200" />
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* Feature Grid (Services) */}
         <section id="services" className="bg-zinc-50 py-24 sm:py-32">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="mb-16 text-center max-w-2xl mx-auto">
-              <h2 className="text-lg font-semibold text-blue-600">제공 서비스</h2>
-              <h3 className="mt-2 text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl">
-                1인 창업자와 소규모 제조사를 위한<br className="hidden sm:inline" /> 맞춤형 솔루션
-              </h3>
-              <p className="mt-4 text-zinc-600">
-                아이템 기획부터 수출까지, 단계별로 필요한 규제 해결 서비스를 선택해보세요.
+            <div className="mb-20 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+              <div className="max-w-2xl">
+                <h2 className="text-lg font-bold text-blue-600">Our Services</h2>
+                <h3 className="mt-2 text-4xl font-extrabold tracking-tight text-zinc-900">
+                  성공적인 비즈니스를 위한<br />핵심 도구 모음
+                </h3>
+              </div>
+              <p className="text-zinc-600 md:max-w-xs text-sm leading-relaxed border-l-2 border-blue-600 pl-4">
+                단순 진단을 넘어 행정 업무의 전 과정을 디지털화하여 제조사의 생산성을 극대화합니다.
               </p>
             </div>
 
