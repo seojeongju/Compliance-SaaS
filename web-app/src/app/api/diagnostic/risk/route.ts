@@ -1,5 +1,7 @@
 
 import { NextResponse } from "next/server";
+
+export const runtime = "edge";
 import { z } from "zod";
 import { OpenAI } from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
