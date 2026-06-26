@@ -11,7 +11,7 @@ export default function LoginPage() {
     const [loading, setLoading] = useState(false);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [mode, setMode] = useState<"signin" | "signup">("signin");
+    const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
     const [error, setError] = useState<string | null>(null);
     const [message, setMessage] = useState<string | null>(null);
     const router = useRouter();
@@ -29,16 +29,25 @@ export default function LoginPage() {
                 const { error } = await supabase.auth.signUp({
                     email,
                     password,
+                    options: {
+                        emailRedirectTo: `${window.location.origin}/auth/callback`,
+                    }
                 });
                 if (error) throw error;
                 setMessage("가입 확인 이메일이 발송되었습니다. 이메일을 확인해주세요.");
-            } else {
+            } else if (mode === "signin") {
                 const { error } = await supabase.auth.signInWithPassword({
                     email,
                     password,
                 });
                 if (error) throw error;
                 router.push("/dashboard");
+            } else if (mode === "forgot") {
+                const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                    redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+                });
+                if (error) throw error;
+                setMessage("비밀번호 재설정 링크가 이메일로 전송되었습니다. 이메일을 확인해주세요.");
             }
         } catch (error: any) {
             console.error("Auth Error:", error);
@@ -108,12 +117,14 @@ export default function LoginPage() {
                 >
                     <div className="space-y-2 text-center lg:text-left">
                         <h1 className="text-3xl font-bold tracking-tighter text-zinc-900">
-                            {mode === "signin" ? "환영합니다!" : "계정을 생성하세요"}
+                            {mode === "signin" ? "환영합니다!" : mode === "signup" ? "계정을 생성하세요" : "비밀번호 찾기"}
                         </h1>
                         <p className="text-zinc-500">
                             {mode === "signin"
                                 ? "이메일과 비밀번호를 입력하여 로그인하세요."
-                                : "서비스 이용을 위한 기본 정보를 입력해주세요."}
+                                : mode === "signup"
+                                ? "서비스 이용을 위한 기본 정보를 입력해주세요."
+                                : "가입하신 이메일 주소를 입력하시면 비밀번호 재설정 링크를 전송해 드립니다."}
                         </p>
                     </div>
 
@@ -136,29 +147,35 @@ export default function LoginPage() {
                                     />
                                 </div>
                             </div>
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70" htmlFor="password">
-                                        비밀번호
-                                    </label>
-                                    {mode === "signin" && (
-                                        <Link href="#" className="text-xs font-medium text-blue-600 hover:underline">
-                                            비밀번호 찾기
-                                        </Link>
-                                    )}
+                            {mode !== "forgot" && (
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70" htmlFor="password">
+                                            비밀번호
+                                        </label>
+                                        {mode === "signin" && (
+                                            <button
+                                                type="button"
+                                                onClick={() => { setMode("forgot"); setError(null); setMessage(null); }}
+                                                className="text-xs font-medium text-blue-600 hover:underline"
+                                            >
+                                                비밀번호 찾기
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="relative">
+                                        <Lock className="absolute left-3 top-3 h-4 w-4 text-zinc-400" />
+                                        <input
+                                            id="password"
+                                            type="password"
+                                            required
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            className="flex h-10 w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 pl-9 text-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50 transition-all hover:border-zinc-400"
+                                        />
+                                    </div>
                                 </div>
-                                <div className="relative">
-                                    <Lock className="absolute left-3 top-3 h-4 w-4 text-zinc-400" />
-                                    <input
-                                        id="password"
-                                        type="password"
-                                        required
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        className="flex h-10 w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 pl-9 text-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50 transition-all hover:border-zinc-400"
-                                    />
-                                </div>
-                            </div>
+                            )}
                         </div>
 
                         <AnimatePresence>
@@ -192,32 +209,43 @@ export default function LoginPage() {
                             className="inline-flex w-full items-center justify-center rounded-md bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow transition-colors hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950 disabled:pointer-events-none disabled:opacity-50"
                         >
                             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            {mode === "signin" ? "로그인" : "계정 만들기"} <ArrowRight className="ml-2 h-4 w-4" />
+                            {mode === "signin" ? "로그인" : mode === "signup" ? "계정 만들기" : "비밀번호 재설정 메일 전송"} <ArrowRight className="ml-2 h-4 w-4" />
                         </button>
                     </form>
 
-                    <div className="relative">
-                        <div className="absolute inset-0 flex items-center">
-                            <span className="w-full border-t border-zinc-200" />
-                        </div>
-                        <div className="relative flex justify-center text-xs uppercase">
-                            <span className="bg-white px-2 text-zinc-500">Or continue with</span>
-                        </div>
-                    </div>
+                    {mode !== "forgot" && (
+                        <>
+                            <div className="relative">
+                                <div className="absolute inset-0 flex items-center">
+                                    <span className="w-full border-t border-zinc-200" />
+                                </div>
+                                <div className="relative flex justify-center text-xs uppercase">
+                                    <span className="bg-white px-2 text-zinc-500">Or continue with</span>
+                                </div>
+                            </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <button disabled className="inline-flex items-center justify-center rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-zinc-50 hover:text-zinc-900 transition-colors opacity-50 cursor-not-allowed">
-                            <Github className="mr-2 h-4 w-4" /> GitHub
-                        </button>
-                        <button disabled className="inline-flex items-center justify-center rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-zinc-50 hover:text-zinc-900 transition-colors opacity-50 cursor-not-allowed">
-                            <svg className="mr-2 h-4 w-4" aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .533 5.333.533 12S5.867 24 12.48 24c3.44 0 6.373-1.133 8.573-3.293 2.253-2.253 3.12-5.747 2.76-8.987l-11.333.2z"></path>
-                            </svg> Google
-                        </button>
-                    </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <button disabled className="inline-flex items-center justify-center rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-zinc-50 hover:text-zinc-900 transition-colors opacity-50 cursor-not-allowed">
+                                    <Github className="mr-2 h-4 w-4" /> GitHub
+                                </button>
+                                <button disabled className="inline-flex items-center justify-center rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-zinc-50 hover:text-zinc-900 transition-colors opacity-50 cursor-not-allowed">
+                                    <svg className="mr-2 h-4 w-4" aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .533 5.333.533 12S5.867 24 12.48 24c3.44 0 6.373-1.133 8.573-3.293 2.253-2.253 3.12-5.747 2.76-8.987l-11.333.2z"></path>
+                                    </svg> Google
+                                </button>
+                            </div>
+                        </>
+                    )}
 
                     <p className="px-8 text-center text-sm text-zinc-500">
-                        {mode === "signin" ? (
+                        {mode === "forgot" ? (
+                            <>
+                                기억이 나셨나요?{" "}
+                                <button onClick={() => { setMode("signin"); setError(null); setMessage(null); }} className="font-semibold text-zinc-900 hover:underline underline-offset-4 decoration-blue-500 decoration-2">
+                                    로그인하기
+                                </button>
+                            </>
+                        ) : mode === "signin" ? (
                             <>
                                 계정이 없으신가요?{" "}
                                 <button onClick={toggleMode} className="font-semibold text-zinc-900 hover:underline underline-offset-4 decoration-blue-500 decoration-2">

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import {
     AlertCircle, CheckCircle, ChevronRight, FileText, Loader2, Search, Zap,
     Download, Clock, History, Trash2, Lock, Shield, Settings, Globe,
-    Scale, AlertTriangle, Printer, Cpu, FileDown
+    Scale, AlertTriangle, Printer, Cpu, FileDown, Bookmark, Bell
 } from "lucide-react";
 import { createSupabaseClient } from "../../../lib/supabaseClient";
 import { motion } from "framer-motion";
@@ -98,12 +98,25 @@ interface SubsidyResult {
         agency: string;
         budget: string;
         deadline: string;
+        deadline_status?: "open" | "closing_soon" | "closed" | "unknown";
         eligibility: string;
         description: string;
         relevance_score: number;
         link: string;
+        official_url?: string;
+        announcement_id?: string;
+        source?: "bizinfo" | "kstartup" | "ai";
+        match_reasons?: string[];
+        application_url?: string;
+        category?: string;
+        cost_saving_estimate?: string;
     }>;
     strategy_advice: string;
+    data_source?: "bizinfo_live" | "database" | "hybrid" | "ai_fallback";
+    data_freshness?: string;
+    candidate_count?: number;
+    certification_cost?: string | null;
+    cost_saving_summary?: string;
 }
 
 interface RiskAssessmentResult {
@@ -178,6 +191,8 @@ export default function DiagnosticPage() {
         interestArea: "certification", // certification, export, rnd, marketing
     });
     const [subsidyResult, setSubsidyResult] = useState<SubsidyResult | null>(null);
+    const [subsidyBookmarks, setSubsidyBookmarks] = useState<Set<string>>(new Set());
+    const [deadlineAlerts, setDeadlineAlerts] = useState<any[]>([]);
 
     // Risk Assessment States
     const [riskFormData, setRiskFormData] = useState({
@@ -215,7 +230,122 @@ export default function DiagnosticPage() {
             setMode("detailed");
             setActiveDetailedTool(toolId as DetailedTool);
         }
+
+        loadSubsidyBookmarks();
+        loadDeadlineAlerts();
     }, []);
+
+    async function getAuthHeaders(): Promise<Record<string, string>> {
+        const supabase = createSupabaseClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) return {};
+        return { Authorization: `Bearer ${session.access_token}` };
+    }
+
+    async function loadSubsidyBookmarks() {
+        try {
+            const headers = await getAuthHeaders();
+            if (!headers.Authorization) return;
+
+            const res = await fetch("/api/subsidy/bookmarks", { headers });
+            if (!res.ok) return;
+
+            const data = await res.json();
+            const keys = new Set<string>(
+                (data.bookmarks || []).map((b: { source: string; announcement_id: string }) => `${b.source}:${b.announcement_id}`)
+            );
+            setSubsidyBookmarks(keys);
+        } catch (e) {
+            console.error("Bookmark load error", e);
+        }
+    }
+
+    async function loadDeadlineAlerts() {
+        try {
+            const headers = await getAuthHeaders();
+            if (!headers.Authorization) return;
+
+            const res = await fetch("/api/subsidy/deadline-alerts", { headers });
+            if (!res.ok) return;
+
+            const data = await res.json();
+            setDeadlineAlerts(data.alerts || []);
+        } catch (e) {
+            console.error("Deadline alerts load error", e);
+        }
+    }
+
+    const toggleSubsidyBookmark = async (sub: SubsidyResult["recommended_subsidies"][number]) => {
+        if (!sub.announcement_id || !sub.source || sub.source === "ai") {
+            alert("공식 공고만 북마크할 수 있습니다.");
+            return;
+        }
+
+        const key = `${sub.source}:${sub.announcement_id}`;
+        const isBookmarked = subsidyBookmarks.has(key);
+
+        try {
+            const headers = await getAuthHeaders();
+            if (!headers.Authorization) {
+                alert("로그인이 필요합니다.");
+                return;
+            }
+
+            if (isBookmarked) {
+                const res = await fetch(
+                    `/api/subsidy/bookmarks?announcement_id=${sub.announcement_id}&source=${sub.source}`,
+                    { method: "DELETE", headers }
+                );
+                if (!res.ok) throw new Error("Failed to remove bookmark");
+                setSubsidyBookmarks((prev) => {
+                    const next = new Set(prev);
+                    next.delete(key);
+                    return next;
+                });
+            } else {
+                const res = await fetch("/api/subsidy/bookmarks", {
+                    method: "POST",
+                    headers: { ...headers, "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        announcement_id: sub.announcement_id,
+                        source: sub.source,
+                        title: sub.title,
+                        official_url: sub.official_url || sub.link,
+                        deadline: sub.deadline,
+                        deadline_status: sub.deadline_status || "unknown",
+                    }),
+                });
+                if (!res.ok) throw new Error("Failed to add bookmark");
+                setSubsidyBookmarks((prev) => new Set(prev).add(key));
+            }
+            loadDeadlineAlerts();
+        } catch (e) {
+            console.error(e);
+            alert("북마크 처리 중 오류가 발생했습니다.");
+        }
+    };
+
+    const getSubsidySourceLabel = (source?: string) => {
+        if (source === "bizinfo") return "기업마당 공식";
+        if (source === "kstartup") return "K-Startup 공식";
+        return null;
+    };
+
+    const getDataSourceMessage = (result: SubsidyResult) => {
+        switch (result.data_source) {
+            case "hybrid":
+                return `✅ DB 캐시 + 실시간 API 병합 매칭${result.candidate_count ? ` (${result.candidate_count}건 후보)` : ""}`;
+            case "database":
+                return `✅ DB 캐시 기반 매칭${result.candidate_count ? ` (${result.candidate_count}건 후보)` : ""}`;
+            case "bizinfo_live":
+                return `✅ 실시간 공고 기반 매칭${result.candidate_count ? ` (${result.candidate_count}건 후보)` : ""}`;
+            default:
+                return "⚠️ AI 추정 데이터 — 신청 전 기업마당에서 최신 공고를 확인하세요";
+        }
+    };
+
+    const isLiveDataSource = (source?: SubsidyResult["data_source"]) =>
+        source === "bizinfo_live" || source === "database" || source === "hybrid";
 
     async function fetchAndLoadResult(id: string) {
         try {
@@ -991,6 +1121,157 @@ export default function DiagnosticPage() {
         }
     };
 
+    const getSubsidyOfficialUrl = (sub: SubsidyResult["recommended_subsidies"][number]) => {
+        return sub.official_url || sub.link || "";
+    };
+
+    const getDeadlineBadge = (status?: SubsidyResult["recommended_subsidies"][number]["deadline_status"]) => {
+        switch (status) {
+            case "closing_soon":
+                return { label: "마감 임박", className: "bg-red-100 text-red-700" };
+            case "open":
+                return { label: "접수중", className: "bg-green-100 text-green-700" };
+            case "closed":
+                return { label: "마감", className: "bg-zinc-100 text-zinc-500" };
+            default:
+                return null;
+        }
+    };
+
+    const downloadSubsidyPDF = async () => {
+        if (!subsidyResult) return;
+
+        const doc = new jsPDF();
+
+        try {
+            const fontUrl = "https://raw.githubusercontent.com/google/fonts/main/ofl/nanumgothic/NanumGothic-Regular.ttf";
+            const response = await fetch(fontUrl);
+            if (!response.ok) throw new Error("Failed to load Korean font");
+
+            const fontBuffer = await response.arrayBuffer();
+            const fontUint8 = new Uint8Array(fontBuffer);
+            let fontBinary = "";
+            for (let i = 0; i < fontUint8.length; i++) {
+                fontBinary += String.fromCharCode(fontUint8[i]);
+            }
+
+            doc.addFileToVFS("NanumGothic.ttf", fontBinary);
+            doc.addFont("NanumGothic.ttf", "NanumGothic", "normal");
+            doc.setFont("NanumGothic");
+
+            doc.setFontSize(20);
+            doc.text("맞춤형 정부지원사업 매칭 보고서", 105, 25, { align: "center" });
+            doc.setFontSize(11);
+            doc.text(`대상: ${subsidyFormData.productName}`, 105, 35, { align: "center" });
+            doc.setFontSize(9);
+            doc.text(`생성일: ${new Date().toLocaleDateString("ko-KR")}`, 105, 42, { align: "center" });
+            if (subsidyResult.data_freshness) {
+                doc.text(subsidyResult.data_freshness, 105, 48, { align: "center" });
+            }
+
+            let currentY = 58;
+
+            doc.setFontSize(13);
+            doc.text("1. 분석 요약", 14, currentY);
+            currentY += 8;
+            doc.setFontSize(10);
+            const summaryLines = doc.splitTextToSize(subsidyResult.analysis_summary, 180);
+            doc.text(summaryLines, 14, currentY);
+            currentY += summaryLines.length * 5 + 10;
+
+            doc.setFontSize(13);
+            doc.text("2. 추천 지원사업", 14, currentY);
+            currentY += 6;
+
+            const tableData = subsidyResult.recommended_subsidies.map((sub, idx) => [
+                String(idx + 1),
+                sub.title.slice(0, 30) + (sub.title.length > 30 ? "..." : ""),
+                sub.agency,
+                sub.budget,
+                `${sub.relevance_score}%`,
+            ]);
+
+            autoTable(doc, {
+                startY: currentY,
+                head: [["#", "사업명", "소관기관", "지원규모", "적합도"]],
+                body: tableData,
+                theme: "grid",
+                styles: { font: "NanumGothic", fontSize: 8 },
+                headStyles: { fillColor: [234, 88, 12], font: "NanumGothic" },
+            });
+
+            currentY = (doc as any).lastAutoTable.finalY + 10;
+
+            subsidyResult.recommended_subsidies.forEach((sub, idx) => {
+                if (currentY > 240) {
+                    doc.addPage();
+                    currentY = 20;
+                }
+
+                doc.setFontSize(12);
+                doc.text(`${idx + 1}. ${sub.title}`, 14, currentY);
+                currentY += 7;
+
+                doc.setFontSize(9);
+                const details = [
+                    `소관기관: ${sub.agency}`,
+                    `신청기간: ${sub.deadline}`,
+                    `지원규모: ${sub.budget}`,
+                    `지원대상: ${sub.eligibility}`,
+                    `지원내용: ${sub.description}`,
+                ];
+                if (sub.match_reasons?.length) {
+                    details.push(`선정이유: ${sub.match_reasons.join(", ")}`);
+                }
+                const officialUrl = getSubsidyOfficialUrl(sub);
+                if (officialUrl) {
+                    details.push(`공고링크: ${officialUrl}`);
+                }
+
+                details.forEach((line) => {
+                    const lines = doc.splitTextToSize(line, 180);
+                    if (currentY + lines.length * 4 > 280) {
+                        doc.addPage();
+                        currentY = 20;
+                    }
+                    doc.text(lines, 14, currentY);
+                    currentY += lines.length * 4 + 2;
+                });
+                currentY += 6;
+            });
+
+            if (currentY > 230) {
+                doc.addPage();
+                currentY = 20;
+            }
+
+            doc.setFontSize(13);
+            doc.text("3. 신청 전략", 14, currentY);
+            currentY += 8;
+            doc.setFontSize(10);
+            const strategyLines = doc.splitTextToSize(subsidyResult.strategy_advice, 180);
+            doc.text(strategyLines, 14, currentY);
+
+            const pageCount = (doc as any).internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(7);
+                doc.setTextColor(150);
+                doc.text(
+                    `본 보고서는 Certi-Mate AI에 의해 생성되었으며, 신청 전 반드시 공식 공고문을 확인하세요. | ${i}/${pageCount}`,
+                    105,
+                    285,
+                    { align: "center" }
+                );
+            }
+
+            doc.save(`${subsidyFormData.productName.replace(/\s+/g, "_")}_정부지원사업_보고서.pdf`);
+        } catch (err) {
+            console.error("Subsidy PDF error:", err);
+            alert("PDF 생성 중 오류가 발생했습니다.");
+        }
+    };
+
 
     // --- Components ---
 
@@ -1465,6 +1746,26 @@ export default function DiagnosticPage() {
                                 <p className="text-zinc-600">인증 비용 지원, 수출 바우처, R&D 자금 등 귀사에 가장 적합한 지원 사업을 찾아드립니다.</p>
                             </div>
 
+                            {deadlineAlerts.length > 0 && (
+                                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                                    <div className="flex items-center gap-2 font-bold mb-1">
+                                        <Bell className="h-4 w-4" /> 마감 임박 알림 ({deadlineAlerts.length}건)
+                                    </div>
+                                    <ul className="space-y-1 text-xs">
+                                        {deadlineAlerts.slice(0, 3).map((alert) => (
+                                            <li key={`${alert.source}:${alert.announcement_id}`}>
+                                                • {alert.title}
+                                                {alert.official_url && (
+                                                    <a href={alert.official_url} target="_blank" rel="noopener noreferrer" className="ml-2 underline">
+                                                        공고 확인
+                                                    </a>
+                                                )}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+
                             {!subsidyResult ? (
                                 <form onSubmit={handleSubsidySubmit} className="space-y-6 rounded-xl border bg-white p-8 shadow-sm">
                                     <div className="grid gap-6 md:grid-cols-2">
@@ -1552,6 +1853,12 @@ export default function DiagnosticPage() {
                                                 다시 찾기
                                             </button>
                                             <button
+                                                onClick={downloadSubsidyPDF}
+                                                className="flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-4 py-2 text-sm font-bold text-orange-700 hover:bg-orange-100"
+                                            >
+                                                <FileDown className="h-4 w-4" /> PDF 보고서
+                                            </button>
+                                            <button
                                                 onClick={handleSaveSubsidy}
                                                 className="flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-white hover:bg-orange-700"
                                             >
@@ -1560,25 +1867,69 @@ export default function DiagnosticPage() {
                                         </div>
                                     </div>
 
+                                    {subsidyResult.data_source && (
+                                        <div className={`rounded-lg border px-4 py-3 text-sm ${
+                                            isLiveDataSource(subsidyResult.data_source)
+                                                ? "border-green-200 bg-green-50 text-green-800"
+                                                : "border-amber-200 bg-amber-50 text-amber-800"
+                                        }`}>
+                                            <span>{getDataSourceMessage(subsidyResult)}</span>
+                                            {subsidyResult.data_freshness && (
+                                                <span className="block text-xs mt-1 opacity-80">{subsidyResult.data_freshness}</span>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {subsidyResult.cost_saving_summary && (
+                                        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                                            <span className="font-bold">💰 비용 절감 분석</span>
+                                            <p className="mt-1">{subsidyResult.cost_saving_summary}</p>
+                                            {subsidyResult.certification_cost && (
+                                                <p className="text-xs mt-1 opacity-80">기준: 규제 진단 예상 인증 비용 {subsidyResult.certification_cost}</p>
+                                            )}
+                                        </div>
+                                    )}
+
                                     <div className="rounded-xl border border-orange-100 bg-orange-50 p-6">
                                         <h4 className="font-bold text-orange-900 mb-2">분석 요약</h4>
                                         <p className="text-sm text-orange-800 leading-relaxed">{subsidyResult.analysis_summary}</p>
                                     </div>
 
                                     <div className="grid gap-4">
-                                        {subsidyResult.recommended_subsidies.map((sub, idx) => (
-                                            <div key={idx} className="group overflow-hidden rounded-xl border bg-white p-6 shadow-sm hover:border-orange-300 transition-all">
+                                        {subsidyResult.recommended_subsidies.map((sub, idx) => {
+                                            const officialUrl = getSubsidyOfficialUrl(sub);
+                                            const deadlineBadge = getDeadlineBadge(sub.deadline_status);
+                                            const sourceLabel = getSubsidySourceLabel(sub.source);
+                                            const bookmarkKey = sub.announcement_id && sub.source
+                                                ? `${sub.source}:${sub.announcement_id}` : "";
+                                            const isBookmarked = bookmarkKey ? subsidyBookmarks.has(bookmarkKey) : false;
+
+                                            return (
+                                            <div key={sub.announcement_id || idx} className="group overflow-hidden rounded-xl border bg-white p-6 shadow-sm hover:border-orange-300 transition-all">
                                                 <div className="flex items-start justify-between mb-4">
                                                     <div>
-                                                        <div className="flex items-center gap-2 mb-1">
+                                                        <div className="flex flex-wrap items-center gap-2 mb-1">
                                                             <span className="text-xs font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded uppercase">
                                                                 {sub.agency}
                                                             </span>
+                                                            {sourceLabel && (
+                                                                <span className="text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded">
+                                                                    {sourceLabel}
+                                                                </span>
+                                                            )}
+                                                            {deadlineBadge && (
+                                                                <span className={`text-xs font-medium px-2 py-0.5 rounded ${deadlineBadge.className}`}>
+                                                                    {deadlineBadge.label}
+                                                                </span>
+                                                            )}
                                                             <span className="text-xs font-medium text-zinc-500">매칭률 {sub.relevance_score}%</span>
                                                         </div>
                                                         <h4 className="text-lg font-bold text-zinc-900 group-hover:text-orange-600 transition-colors">{sub.title}</h4>
+                                                        {sub.category && (
+                                                            <span className="text-xs text-zinc-400 mt-1 block">{sub.category}</span>
+                                                        )}
                                                     </div>
-                                                    <div className="text-right">
+                                                    <div className="text-right shrink-0 ml-4">
                                                         <div className="text-sm font-bold text-zinc-900">{sub.budget}</div>
                                                         <div className="text-xs text-zinc-500">{sub.deadline}</div>
                                                     </div>
@@ -1593,13 +1944,60 @@ export default function DiagnosticPage() {
                                                         <p className="text-zinc-500">{sub.description}</p>
                                                     </div>
                                                 </div>
-                                                <div className="flex justify-end order-t pt-4">
-                                                    <button className="text-xs font-bold text-blue-600 hover:underline">
-                                                        자세히 보기 (Bizinfo로 이동) →
-                                                    </button>
+                                                {sub.match_reasons && sub.match_reasons.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1.5 mb-4">
+                                                        {sub.match_reasons.map((reason, rIdx) => (
+                                                            <span key={rIdx} className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
+                                                                {reason}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                {sub.cost_saving_estimate && (
+                                                    <div className="text-xs bg-blue-50 text-blue-700 px-3 py-2 rounded-lg mb-4">
+                                                        💰 {sub.cost_saving_estimate}
+                                                    </div>
+                                                )}
+                                                <div className="flex justify-between items-center border-t pt-4">
+                                                    {bookmarkKey && sub.source !== "ai" ? (
+                                                        <button
+                                                            onClick={() => toggleSubsidyBookmark(sub)}
+                                                            className={`flex items-center gap-1 text-xs font-bold ${
+                                                                isBookmarked ? "text-orange-600" : "text-zinc-400 hover:text-orange-500"
+                                                            }`}
+                                                        >
+                                                            <Bookmark className={`h-3.5 w-3.5 ${isBookmarked ? "fill-current" : ""}`} />
+                                                            {isBookmarked ? "북마크됨" : "북마크"}
+                                                        </button>
+                                                    ) : <span />}
+                                                    <div className="flex gap-3">
+                                                    {sub.application_url && (
+                                                        <a
+                                                            href={sub.application_url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-xs font-bold text-green-600 hover:underline"
+                                                        >
+                                                            온라인 신청 →
+                                                        </a>
+                                                    )}
+                                                    {officialUrl ? (
+                                                        <a
+                                                            href={officialUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-xs font-bold text-blue-600 hover:underline"
+                                                        >
+                                                            공고문 보기 →
+                                                        </a>
+                                                    ) : (
+                                                        <span className="text-xs text-zinc-400">공고 링크 없음</span>
+                                                    )}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
 
                                     <div className="rounded-xl border bg-zinc-900 p-6 text-white">
