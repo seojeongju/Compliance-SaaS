@@ -34,6 +34,7 @@ interface BizinfoRawItem {
     reqstDt?: string;
     reqstBeginEndDe?: string;
     hashTags?: string;
+    hashtags?: string;
     pubDate?: string;
     creatPnttm?: string;
     rceptEngnHmpgUrl?: string;
@@ -95,7 +96,7 @@ function normalizeItem(item: BizinfoRawItem): SubsidyProgramCandidate | null {
 
     const application_period = item.reqstBeginEndDe || item.reqstDt || "상시 / 미정";
     const description = item.bsnsSumryCn || item.description || "";
-    const hashtags = (item.hashTags || "")
+    const hashtags = (item.hashtags || item.hashTags || "")
         .split(",")
         .map((t) => t.trim())
         .filter(Boolean);
@@ -163,7 +164,6 @@ export async function fetchBizinfoPrograms(
     try {
         const response = await fetch(`${BIZINFO_API_URL}?${searchParams.toString()}`, {
             headers: { Accept: "application/json" },
-            next: { revalidate: 3600 },
         });
 
         if (!response.ok) {
@@ -171,6 +171,9 @@ export async function fetchBizinfoPrograms(
         }
 
         const data = await response.json();
+        if (data && typeof data === "object" && "reqErr" in data) {
+            return { programs: [], error: `Bizinfo API: ${String((data as { reqErr: unknown }).reqErr)}` };
+        }
         const items = extractItems(data);
 
         const programs = items
