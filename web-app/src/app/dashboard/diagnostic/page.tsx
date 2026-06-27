@@ -11,6 +11,7 @@ import { deleteDiagnosticResult, fetchProfile, listDiagnosticResults, saveDiagno
 import { motion } from "framer-motion";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { getSubsidyLink } from "@/lib/subsidy";
 
 // --- Types ---
 
@@ -311,7 +312,7 @@ export default function DiagnosticPage() {
                         announcement_id: sub.announcement_id,
                         source: sub.source,
                         title: sub.title,
-                        official_url: sub.official_url || sub.link,
+                        official_url: getSubsidyLink(sub),
                         deadline: sub.deadline,
                         deadline_status: sub.deadline_status || "unknown",
                     }),
@@ -1023,10 +1024,6 @@ export default function DiagnosticPage() {
         }
     };
 
-    const getSubsidyOfficialUrl = (sub: SubsidyResult["recommended_subsidies"][number]) => {
-        return sub.official_url || sub.link || "";
-    };
-
     const getDeadlineBadge = (status?: SubsidyResult["recommended_subsidies"][number]["deadline_status"]) => {
         switch (status) {
             case "closing_soon":
@@ -1125,7 +1122,7 @@ export default function DiagnosticPage() {
                 if (sub.match_reasons?.length) {
                     details.push(`선정이유: ${sub.match_reasons.join(", ")}`);
                 }
-                const officialUrl = getSubsidyOfficialUrl(sub);
+                const officialUrl = getSubsidyLink(sub);
                 if (officialUrl) {
                     details.push(`공고링크: ${officialUrl}`);
                 }
@@ -1799,7 +1796,7 @@ export default function DiagnosticPage() {
 
                                     <div className="grid gap-4">
                                         {subsidyResult.recommended_subsidies.map((sub, idx) => {
-                                            const officialUrl = getSubsidyOfficialUrl(sub);
+                                            const officialUrl = getSubsidyLink(sub);
                                             const deadlineBadge = getDeadlineBadge(sub.deadline_status);
                                             const sourceLabel = getSubsidySourceLabel(sub.source);
                                             const bookmarkKey = sub.announcement_id && sub.source
@@ -1890,7 +1887,7 @@ export default function DiagnosticPage() {
                                                             rel="noopener noreferrer"
                                                             className="text-xs font-bold text-blue-600 hover:underline"
                                                         >
-                                                            공고문 보기 →
+                                                            {sub.source === "ai" ? "기업마당에서 검색 →" : "공고문 보기 →"}
                                                         </a>
                                                     ) : (
                                                         <span className="text-xs text-zinc-400">공고 링크 없음</span>

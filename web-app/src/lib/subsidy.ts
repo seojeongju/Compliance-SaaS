@@ -1,4 +1,5 @@
 import type { SubsidyProgramCandidate } from "./subsidy-program";
+import { resolveBizinfoOfficialUrl, resolveSubsidyOfficialUrl } from "./subsidy-url";
 
 export type SubsidyInterestArea = "certification" | "export" | "rnd" | "marketing";
 export type SubsidyCompanyStage = "initial" | "growth" | "mature";
@@ -141,6 +142,10 @@ export function mergeAiSelectionWithProgram(
     },
     program: SubsidyProgramCandidate
 ): RecommendedSubsidy {
+    const official_url =
+        resolveBizinfoOfficialUrl(program.official_url, program.announcement_id) ||
+        program.official_url;
+
     return {
         title: program.title,
         agency: program.agency,
@@ -150,8 +155,8 @@ export function mergeAiSelectionWithProgram(
         eligibility: aiItem.eligibility || program.target || "공고문 참조",
         description: aiItem.description || program.description,
         relevance_score: aiItem.relevance_score,
-        link: program.official_url,
-        official_url: program.official_url,
+        link: official_url,
+        official_url,
         announcement_id: program.announcement_id,
         source: program.source,
         match_reasons: aiItem.match_reasons,
@@ -204,6 +209,14 @@ export function buildCostSavingSummary(
     return estimates[0];
 }
 
-export function getSubsidyLink(subsidy: Pick<RecommendedSubsidy, "official_url" | "link">): string {
-    return subsidy.official_url || subsidy.link || "";
+export function getSubsidyLink(
+    subsidy: {
+        official_url?: string;
+        link?: string;
+        announcement_id?: string;
+        title?: string;
+        source?: RecommendedSubsidy["source"];
+    }
+): string {
+    return resolveSubsidyOfficialUrl(subsidy);
 }

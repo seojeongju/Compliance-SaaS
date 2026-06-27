@@ -11,6 +11,7 @@ import {
     type SubsidyFormInput,
     type SubsidyResult,
 } from "@/lib/subsidy";
+import { buildBizinfoSearchUrl } from "@/lib/subsidy-url";
 import {
     fetchCertificationCost,
     gatherCandidates,
@@ -165,7 +166,7 @@ ${costContext}
 
 [안내]
 - 인증 지원, 수출 바우처, R&D, 창업 지원 관련 사업을 포함하세요.
-- link 필드에는 기업마당(bizinfo.go.kr) 또는 K-Startup(k-startup.go.kr) 검색 URL을 제공하세요.
+- link 필드에는 빈 문자열("")을 넣으세요. 공고 URL은 시스템이 자동 생성합니다.
 - 실시간 공고 데이터가 없으므로, 사용자에게 공식 포털에서 최신 공고를 확인하도록 안내하세요.
 - 한국어로 응답하세요.
 `;
@@ -186,15 +187,19 @@ ${costContext}
     if (!parsed) throw new Error("AI fallback parsing failed");
 
     const recommended = parsed.recommended_subsidies.map(
-        (sub: z.infer<typeof FallbackMatchingSchema>["recommended_subsidies"][number]) => ({
-            ...sub,
-            official_url: sub.link,
-            announcement_id: "",
-            source: "ai" as const,
-            match_reasons: [] as string[],
-            deadline_status: "unknown" as const,
-            cost_saving_estimate: estimateCostSaving(certificationCost, sub.budget),
-        })
+        (sub: z.infer<typeof FallbackMatchingSchema>["recommended_subsidies"][number]) => {
+            const searchUrl = buildBizinfoSearchUrl(sub.title);
+            return {
+                ...sub,
+                link: searchUrl,
+                official_url: searchUrl,
+                announcement_id: "",
+                source: "ai" as const,
+                match_reasons: [] as string[],
+                deadline_status: "unknown" as const,
+                cost_saving_estimate: estimateCostSaving(certificationCost, sub.budget),
+            };
+        }
     );
 
     return {

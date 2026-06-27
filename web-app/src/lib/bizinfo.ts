@@ -5,6 +5,7 @@
 
 import type { SubsidyProgramCandidate } from "./subsidy-program";
 import { getEnv } from "./cloudflare";
+import { resolveBizinfoOfficialUrl } from "./subsidy-url";
 
 const BIZINFO_API_URL = "https://www.bizinfo.go.kr/uss/rss/bizinfoApi.do";
 
@@ -89,9 +90,12 @@ function parseDeadlineDate(period: string): string | null {
 }
 
 function normalizeItem(item: BizinfoRawItem): SubsidyProgramCandidate | null {
-    const announcement_id = item.seq || item.pblancId || "";
+    const announcement_id = item.pblancId || item.seq || "";
     const title = item.pblancNm || item.title || "";
-    const official_url = item.pblancUrl || item.link || "";
+    const rawUrl = item.pblancUrl || item.link || "";
+    const official_url =
+        resolveBizinfoOfficialUrl(rawUrl, announcement_id) ||
+        resolveBizinfoOfficialUrl("", announcement_id);
 
     if (!announcement_id || !title) return null;
 
