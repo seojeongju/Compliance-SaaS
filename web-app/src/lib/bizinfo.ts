@@ -1,6 +1,6 @@
 /**
  * 기업마당(bizinfo.go.kr) 지원사업정보 API 클라이언트
- * @see https://www.bizinfo.go.kr/web/lay1/program/S1T175C174/apiDetail.do?id=bizinfoApi
+ * @see https://www.bizinfo.go.kr/apiDetail.do?id=bizinfoApi
  */
 
 import type { SubsidyProgramCandidate } from "./subsidy-program";

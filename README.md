@@ -50,7 +50,7 @@ npm run db:migrate:local    # 로컬
 |--------|------|
 | `OPENAI_API_KEY` | AI 진단 |
 | `AUTH_SECRET` | 세션/토큰 (설정됨) |
-| `BIZINFO_API_KEY` | 기업마당 API (설정됨) |
+| `BIZINFO_API_KEY` | [기업마당 지원사업정보 API](https://www.bizinfo.go.kr/apiDetail.do?id=bizinfoApi) 인증키 (data.go.kr 키와 별도) |
 | `CRON_SECRET` | subsidy sync cron (설정됨) |
 | `CLOUDFLARE_API_TOKEN` | 이메일 REST 발송 (선택) |
 
