@@ -1177,7 +1177,7 @@ export default function DiagnosticPage() {
 
     // --- Components ---
 
-    const DiagnosticHub = () => (
+    const diagnosticHub = (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="text-center space-y-2">
                 <h1 className="text-3xl font-bold text-zinc-900">규제 진단 센터</h1>
@@ -1370,7 +1370,7 @@ export default function DiagnosticPage() {
         </div>
     );
 
-    const DetailedGrid = () => (
+    const detailedGrid = (
         <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-right-8 duration-500">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-zinc-100">
                 <div className="flex items-center gap-4">
@@ -1489,7 +1489,7 @@ export default function DiagnosticPage() {
                                                 required
                                                 className="w-full rounded-md border border-zinc-300 px-4 py-2"
                                                 value={labelFormData.productName}
-                                                onChange={e => setLabelFormData({ ...labelFormData, productName: e.target.value })}
+                                                onChange={e => setLabelFormData(prev => ({ ...prev, productName: e.target.value }))}
                                                 placeholder="예: 퓨어 핸드워시"
                                             />
                                         </div>
@@ -1499,7 +1499,7 @@ export default function DiagnosticPage() {
                                                 required
                                                 className="w-full rounded-md border border-zinc-300 px-4 py-2"
                                                 value={labelFormData.productType}
-                                                onChange={e => setLabelFormData({ ...labelFormData, productType: e.target.value })}
+                                                onChange={e => setLabelFormData(prev => ({ ...prev, productType: e.target.value }))}
                                                 placeholder="예: 액체형 / HW-2024"
                                             />
                                         </div>
@@ -1509,7 +1509,7 @@ export default function DiagnosticPage() {
                                                 required
                                                 className="w-full rounded-md border border-zinc-300 px-4 py-2"
                                                 value={labelFormData.weight}
-                                                onChange={e => setLabelFormData({ ...labelFormData, weight: e.target.value })}
+                                                onChange={e => setLabelFormData(prev => ({ ...prev, weight: e.target.value }))}
                                                 placeholder="예: 500ml"
                                             />
                                         </div>
@@ -1519,7 +1519,7 @@ export default function DiagnosticPage() {
                                                 required
                                                 className="w-full rounded-md border border-zinc-300 px-4 py-2"
                                                 value={labelFormData.manufacturer}
-                                                onChange={e => setLabelFormData({ ...labelFormData, manufacturer: e.target.value })}
+                                                onChange={e => setLabelFormData(prev => ({ ...prev, manufacturer: e.target.value }))}
                                                 placeholder="예: (주)서티메이트"
                                             />
                                         </div>
@@ -1530,7 +1530,7 @@ export default function DiagnosticPage() {
                                             className="w-full rounded-md border border-zinc-300 px-4 py-2"
                                             rows={3}
                                             value={labelFormData.precautions}
-                                            onChange={e => setLabelFormData({ ...labelFormData, precautions: e.target.value })}
+                                            onChange={e => setLabelFormData(prev => ({ ...prev, precautions: e.target.value }))}
                                             placeholder="특별히 강조할 주의사항이 있다면 입력해주세요."
                                         />
                                     </div>
@@ -1677,7 +1677,7 @@ export default function DiagnosticPage() {
                                                 required
                                                 className="w-full rounded-md border border-zinc-300 px-4 py-2"
                                                 value={subsidyFormData.productName}
-                                                onChange={e => setSubsidyFormData({ ...subsidyFormData, productName: e.target.value })}
+                                                onChange={e => setSubsidyFormData(prev => ({ ...prev, productName: e.target.value }))}
                                                 placeholder="예: AI 기반 교육용 키트"
                                             />
                                         </div>
@@ -1686,7 +1686,7 @@ export default function DiagnosticPage() {
                                             <select
                                                 className="w-full rounded-md border border-zinc-300 px-4 py-2"
                                                 value={subsidyFormData.companyStage}
-                                                onChange={e => setSubsidyFormData({ ...subsidyFormData, companyStage: e.target.value })}
+                                                onChange={e => setSubsidyFormData(prev => ({ ...prev, companyStage: e.target.value }))}
                                             >
                                                 <option value="initial">예비창업 / 초기 (3년 미만)</option>
                                                 <option value="growth">도약 / 성장 (3~7년)</option>
@@ -1698,7 +1698,7 @@ export default function DiagnosticPage() {
                                             <select
                                                 className="w-full rounded-md border border-zinc-300 px-4 py-2"
                                                 value={subsidyFormData.interestArea}
-                                                onChange={e => setSubsidyFormData({ ...subsidyFormData, interestArea: e.target.value })}
+                                                onChange={e => setSubsidyFormData(prev => ({ ...prev, interestArea: e.target.value }))}
                                             >
                                                 <option value="certification">국내/외 인증 비용 지원</option>
                                                 <option value="export">해외 진출 및 수출 바우처</option>
@@ -1711,7 +1711,7 @@ export default function DiagnosticPage() {
                                             <select
                                                 className="w-full rounded-md border border-zinc-300 px-4 py-2"
                                                 value={subsidyFormData.location}
-                                                onChange={e => setSubsidyFormData({ ...subsidyFormData, location: e.target.value })}
+                                                onChange={e => setSubsidyFormData(prev => ({ ...prev, location: e.target.value }))}
                                             >
                                                 <option value="Seoul">서울특별시</option>
                                                 <option value="Gyeonggi">경기도</option>
@@ -1929,7 +1929,7 @@ export default function DiagnosticPage() {
                                                 required
                                                 className="w-full rounded-md border border-zinc-300 px-4 py-2"
                                                 value={ipFormData.productName}
-                                                onChange={e => setIpFormData({ ...ipFormData, productName: e.target.value })}
+                                                onChange={e => setIpFormData(prev => ({ ...prev, productName: e.target.value }))}
                                                 placeholder="예: 갤럭시 버즈 프로"
                                             />
                                         </div>
@@ -1938,7 +1938,7 @@ export default function DiagnosticPage() {
                                             <select
                                                 className="w-full rounded-md border border-zinc-300 px-4 py-2"
                                                 value={ipFormData.category}
-                                                onChange={(e) => setIpFormData({ ...ipFormData, category: e.target.value })}
+                                                onChange={(e) => setIpFormData(prev => ({ ...prev, category: e.target.value }))}
                                             >
                                                 <option value="electronics">IT/가전</option>
                                                 <option value="fashion">패션/잡화</option>
@@ -1956,7 +1956,7 @@ export default function DiagnosticPage() {
                                             className="w-full rounded-md border border-zinc-300 px-4 py-2"
                                             rows={4}
                                             value={ipFormData.description}
-                                            onChange={e => setIpFormData({ ...ipFormData, description: e.target.value })}
+                                            onChange={e => setIpFormData(prev => ({ ...prev, description: e.target.value }))}
                                             placeholder="제품의 디자인적 특징이나 사용된 기술 요소를 설명해주세요."
                                         />
                                     </div>
@@ -2089,7 +2089,7 @@ export default function DiagnosticPage() {
                                                 required
                                                 className="w-full rounded-md border border-zinc-300 px-4 py-2"
                                                 value={riskFormData.productName}
-                                                onChange={e => setRiskFormData({ ...riskFormData, productName: e.target.value })}
+                                                onChange={e => setRiskFormData(prev => ({ ...prev, productName: e.target.value }))}
                                                 placeholder="예: 어린이용 스마트 전동 칫솔"
                                             />
                                         </div>
@@ -2098,7 +2098,7 @@ export default function DiagnosticPage() {
                                             <select
                                                 className="w-full rounded-md border border-zinc-300 px-4 py-2"
                                                 value={riskFormData.category}
-                                                onChange={e => setRiskFormData({ ...riskFormData, category: e.target.value })}
+                                                onChange={e => setRiskFormData(prev => ({ ...prev, category: e.target.value }))}
                                             >
                                                 <option value="electronics">전자제품</option>
                                                 <option value="toys">완구/어린이제품</option>
@@ -2112,7 +2112,7 @@ export default function DiagnosticPage() {
                                             <select
                                                 className="w-full rounded-md border border-zinc-300 px-4 py-2"
                                                 value={riskFormData.usageEnvironment}
-                                                onChange={e => setRiskFormData({ ...riskFormData, usageEnvironment: e.target.value })}
+                                                onChange={e => setRiskFormData(prev => ({ ...prev, usageEnvironment: e.target.value }))}
                                             >
                                                 <option value="indoor">실내 (가정/사무실)</option>
                                                 <option value="outdoor">실외 (야외/이동형)</option>
@@ -2125,7 +2125,7 @@ export default function DiagnosticPage() {
                                             <select
                                                 className="w-full rounded-md border border-zinc-300 px-4 py-2"
                                                 value={riskFormData.targetUser}
-                                                onChange={e => setRiskFormData({ ...riskFormData, targetUser: e.target.value })}
+                                                onChange={e => setRiskFormData(prev => ({ ...prev, targetUser: e.target.value }))}
                                             >
                                                 <option value="infant">영유아 (36개월 미만)</option>
                                                 <option value="child">어린이 (13세 미만)</option>
@@ -2139,7 +2139,7 @@ export default function DiagnosticPage() {
                                                 required
                                                 className="w-full rounded-md border border-zinc-300 px-4 py-2"
                                                 value={riskFormData.mainMaterials}
-                                                onChange={e => setRiskFormData({ ...riskFormData, mainMaterials: e.target.value })}
+                                                onChange={e => setRiskFormData(prev => ({ ...prev, mainMaterials: e.target.value }))}
                                                 placeholder="예: ABS 수지, 실리콘"
                                             />
                                         </div>
@@ -2148,7 +2148,7 @@ export default function DiagnosticPage() {
                                             <select
                                                 className="w-full rounded-md border border-zinc-300 px-4 py-2"
                                                 value={riskFormData.powerSource}
-                                                onChange={e => setRiskFormData({ ...riskFormData, powerSource: e.target.value })}
+                                                onChange={e => setRiskFormData(prev => ({ ...prev, powerSource: e.target.value }))}
                                             >
                                                 <option value="battery">배터리 (충전/건전지)</option>
                                                 <option value="plug">AC 전원 플러그</option>
@@ -2295,7 +2295,7 @@ export default function DiagnosticPage() {
                                         <select
                                             className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-zinc-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
                                             value={smartDocFormData.documentType}
-                                            onChange={e => setSmartDocFormData({ ...smartDocFormData, documentType: e.target.value })}
+                                            onChange={e => setSmartDocFormData(prev => ({ ...prev, documentType: e.target.value }))}
                                         >
                                             <option value="제품설명서">제품설명서 (Product Description)</option>
                                             <option value="시험신청서">KC 인증 시험 신청서</option>
@@ -2310,7 +2310,7 @@ export default function DiagnosticPage() {
                                             required
                                             className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
                                             value={smartDocFormData.productName}
-                                            onChange={e => setSmartDocFormData({ ...smartDocFormData, productName: e.target.value })}
+                                            onChange={e => setSmartDocFormData(prev => ({ ...prev, productName: e.target.value }))}
                                             placeholder="예: 스마트 가습기 Pro"
                                         />
                                     </div>
@@ -2319,7 +2319,7 @@ export default function DiagnosticPage() {
                                         <select
                                             className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
                                             value={smartDocFormData.category}
-                                            onChange={e => setSmartDocFormData({ ...smartDocFormData, category: e.target.value })}
+                                            onChange={e => setSmartDocFormData(prev => ({ ...prev, category: e.target.value }))}
                                         >
                                             <option value="electronics">전기/전자제품</option>
                                             <option value="household">생활용품</option>
@@ -2335,7 +2335,7 @@ export default function DiagnosticPage() {
                                             rows={5}
                                             className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all resize-none"
                                             value={smartDocFormData.description}
-                                            onChange={e => setSmartDocFormData({ ...smartDocFormData, description: e.target.value })}
+                                            onChange={e => setSmartDocFormData(prev => ({ ...prev, description: e.target.value }))}
                                             placeholder="제품의 주요 기능, 정격 전압, 배터리 유무, 재질 등을 적어주세요. 상세할수록 문서의 정확도가 높아집니다."
                                         />
                                     </div>
@@ -2378,7 +2378,7 @@ export default function DiagnosticPage() {
                                                 required
                                                 className="w-full rounded-md border border-zinc-300 px-4 py-2"
                                                 value={globalFormData.productName}
-                                                onChange={e => setGlobalFormData({ ...globalFormData, productName: e.target.value })}
+                                                onChange={e => setGlobalFormData(prev => ({ ...prev, productName: e.target.value }))}
                                                 placeholder="예: 스마트 LED 조명"
                                             />
                                         </div>
@@ -2387,7 +2387,7 @@ export default function DiagnosticPage() {
                                             <select
                                                 className="w-full rounded-md border border-zinc-300 px-4 py-2"
                                                 value={globalFormData.category}
-                                                onChange={(e) => setGlobalFormData({ ...globalFormData, category: e.target.value })}
+                                                onChange={(e) => setGlobalFormData(prev => ({ ...prev, category: e.target.value }))}
                                             >
                                                 <option value="electronics">전자제품 (Electronics)</option>
                                                 <option value="cosmetics">화장품 (Cosmetics)</option>
@@ -2404,7 +2404,7 @@ export default function DiagnosticPage() {
                                             <select
                                                 className="w-full rounded-md border border-zinc-300 px-4 py-2"
                                                 value={globalFormData.targetCountry}
-                                                onChange={(e) => setGlobalFormData({ ...globalFormData, targetCountry: e.target.value })}
+                                                onChange={(e) => setGlobalFormData(prev => ({ ...prev, targetCountry: e.target.value }))}
                                             >
                                                 <option value="USA">미국 (USA)</option>
                                                 <option value="EU">유럽연합 (EU)</option>
@@ -2420,7 +2420,7 @@ export default function DiagnosticPage() {
                                             <input
                                                 className="w-full rounded-md border border-zinc-300 px-4 py-2"
                                                 value={globalFormData.description}
-                                                onChange={e => setGlobalFormData({ ...globalFormData, description: e.target.value })}
+                                                onChange={e => setGlobalFormData(prev => ({ ...prev, description: e.target.value }))}
                                                 placeholder="예: 블루투스 기능을 포함한 가정용 조명기기"
                                             />
                                         </div>
@@ -2549,8 +2549,8 @@ export default function DiagnosticPage() {
 
     return (
         <div className="container mx-auto px-4 pb-20 pt-6">
-            {mode === "hub" && <DiagnosticHub />}
-            {mode === "detailed" && <DetailedGrid />}
+            {mode === "hub" && diagnosticHub}
+            {mode === "detailed" && detailedGrid}
             {mode === "general" && (
                 <div className="animate-in fade-in slide-in-from-right-8 duration-500 max-w-4xl mx-auto">
                     {/* Header with Back Button */}
@@ -2599,7 +2599,7 @@ export default function DiagnosticPage() {
                                             className="w-full rounded-md border border-zinc-300 px-4 py-2 text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                             placeholder="예: 휴대용 블루투스 선풍기"
                                             value={formData.productName}
-                                            onChange={(e) => setFormData({ ...formData, productName: e.target.value })}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, productName: e.target.value }))}
                                         />
                                     </div>
 
@@ -2610,7 +2610,7 @@ export default function DiagnosticPage() {
                                         <select
                                             className="w-full rounded-md border border-zinc-300 px-4 py-2 text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                             value={formData.category}
-                                            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
                                         >
                                             <option value="electronics">전기/전자 제품</option>
                                             <option value="kids">어린이 용품</option>
@@ -2631,7 +2631,7 @@ export default function DiagnosticPage() {
                                             className="w-full rounded-md border border-zinc-300 px-4 py-2 text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                             placeholder="제품의 주요 기능, 사용 재질, 배터리 포함 여부 등을 자세히 적어주세요."
                                             value={formData.description}
-                                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                                         />
                                     </div>
                                 </div>
