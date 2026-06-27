@@ -67,9 +67,6 @@ export async function POST(req: Request) {
 
         const result = completion.choices[0].message.parsed;
 
-        // Save result to Supabase (Optional: Create a new table 'detail_diagnostic_results' or store in JSON)
-        // For now, we just return the result to the client.
-
         return NextResponse.json(result);
     } catch (error) {
         console.error("Label Maker API Error:", error);
