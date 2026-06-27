@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { syncAllSubsidyPrograms } from "@/lib/subsidy-sync";
 
-export const runtime = "nodejs";
-export const maxDuration = 60;
+export const runtime = "edge";
 
 function verifyCronAuth(req: Request): boolean {
     const secret = process.env.CRON_SECRET;
