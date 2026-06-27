@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createSupabaseClient } from "../../../lib/supabaseClient";
+import { verifyEmailToken } from "../../../lib/auth-client";
 import { Loader2 } from "lucide-react";
 
 function AuthCallbackContent() {
@@ -15,15 +15,13 @@ function AuthCallbackContent() {
     }, []);
 
     const handleAuthCallback = async () => {
-        const code = searchParams.get('code');
+        const token = searchParams.get('token');
         const next = searchParams.get('next') ?? '/dashboard';
 
-        if (code) {
-            const supabase = createSupabaseClient();
+        if (token) {
             try {
-                // Exchange code for session using PKCE flow
-                const { error } = await supabase.auth.exchangeCodeForSession(code);
-                if (error) {
+                const result = await verifyEmailToken(token);
+                if (result.error) {
                     setMessage("인증 오류가 발생했습니다. 다시 로그인해주세요.");
                     setTimeout(() => router.push('/login'), 2000);
                 } else {
@@ -36,17 +34,8 @@ function AuthCallbackContent() {
                 setTimeout(() => router.push('/login'), 2000);
             }
         } else {
-            // Implicit flow or just redirected
-            // Check if user is already logged in
-            const supabase = createSupabaseClient();
-            const { data: { session } } = await supabase.auth.getSession();
-
-            if (session) {
-                router.push(next);
-            } else {
-                setMessage("유효하지 않은 링크입니다.");
-                setTimeout(() => router.push('/login'), 2000);
-            }
+            setMessage("유효하지 않은 링크입니다.");
+            setTimeout(() => router.push('/login'), 2000);
         }
     };
 

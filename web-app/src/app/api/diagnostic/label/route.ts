@@ -2,8 +2,6 @@ import { OpenAI } from "openai";
 import { z } from "zod";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { NextResponse } from "next/server";
-import { createSupabaseClient } from "@/lib/supabaseClient";
-
 export const runtime = "edge";
 
 // --- Schema Definitions ---
@@ -29,7 +27,7 @@ export async function POST(req: Request) {
     });
 
     try {
-        const body = await req.json();
+        const body = (await req.json()) as Record<string, string | undefined>;
         const { productName, productType, weight, manufacturer, precautions, userId } = body;
 
         if (!productName || !productType) {

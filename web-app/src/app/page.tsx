@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowRight, Bot, CheckCircle, FileText, ShieldCheck, Zap, Globe, Lock, Loader2, Tag, Search, Printer, Scale, MapPin, AlertTriangle } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import { createSupabaseClient } from "../lib/supabaseClient";
+import { getSession } from "../lib/auth-client";
 
 const workflowSteps = [
   {
@@ -37,8 +37,7 @@ export default function Home() {
 
   const checkUser = async () => {
     try {
-      const supabase = createSupabaseClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await getSession();
       setUser(user);
     } catch (error) {
       console.error("Error checking user:", error);

@@ -1,37 +1,22 @@
 import { NextResponse } from "next/server";
-import { createSupabaseFromRequest } from "@/lib/supabaseAdmin";
+import { requireDb } from "@/lib/cloudflare";
+import { getUserFromRequest } from "@/lib/auth";
+import { listDeadlineAlerts } from "@/lib/db/subsidy-db";
 
 export const runtime = "edge";
 
 export async function GET(req: Request) {
-    const supabase = createSupabaseFromRequest(req);
-    if (!supabase) {
-        return NextResponse.json({ alerts: [] });
+    try {
+        const db = requireDb();
+        const user = await getUserFromRequest(req, db);
+        if (!user) {
+            return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+        }
+
+        const alerts = await listDeadlineAlerts(user.id);
+        return NextResponse.json({ alerts });
+    } catch (error) {
+        console.error("Deadline alerts error:", error);
+        return NextResponse.json({ error: "조회 중 오류가 발생했습니다." }, { status: 500 });
     }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-        return NextResponse.json({ alerts: [] });
-    }
-
-    const { data, error } = await supabase
-        .from("subsidy_bookmarks")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("remind_deadline", true)
-        .in("deadline_status", ["closing_soon", "open"])
-        .order("bookmarked_at", { ascending: false });
-
-    if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    const alerts = (data || []).filter(
-        (b) => b.deadline_status === "closing_soon"
-    );
-
-    return NextResponse.json({
-        alerts,
-        total_bookmarks: data?.length || 0,
-    });
 }

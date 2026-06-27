@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, BarChart, FileText, Plus, Search, ShieldCheck, Zap, Clock, Users, BookOpen } from "lucide-react";
-import { createSupabaseClient } from "../../lib/supabaseClient";
+import { getSession } from "../../lib/auth-client";
+import { fetchDashboardStats, fetchRecentDiagnostics } from "../../lib/diagnostic-client";
 import { motion } from "framer-motion";
 
 export default function DashboardPage() {
@@ -16,36 +17,18 @@ export default function DashboardPage() {
 
     useEffect(() => {
         const fetchData = async () => {
-            const supabase = createSupabaseClient();
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = await getSession();
             setUser(user);
 
             if (user) {
-                // Fetch stats
-                const { count: diagnosticCount } = await supabase
-                    .from('diagnostic_results')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('user_id', user.id);
-
-                const { count: documentCount } = await supabase
-                    .from('documents')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('user_id', user.id);
-
+                const stats = await fetchDashboardStats();
                 setStats({
-                    diagnosticCount: diagnosticCount || 0,
-                    documentCount: documentCount || 0,
+                    diagnosticCount: stats.diagnosticCount || 0,
+                    documentCount: stats.documentCount || 0,
                 });
 
-                // Fetch recent diagnostics
-                const { data: recent } = await (supabase as any)
-                    .from('diagnostic_results')
-                    .select('id, product_name, created_at, category, result_json')
-                    .eq('user_id', user.id)
-                    .order('created_at', { ascending: false })
-                    .limit(3);
-
-                if (recent) setRecentDiagnostics(recent);
+                const recent = await fetchRecentDiagnostics(3);
+                if (recent) setRecentDiagnostics(recent as typeof recentDiagnostics);
             }
         };
 

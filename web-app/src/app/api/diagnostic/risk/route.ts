@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     });
 
     try {
-        const body = await req.json();
+        const body = (await req.json()) as Record<string, string>;
         const { productName, category, usageEnvironment, targetUser, mainMaterials, powerSource } = body;
 
         const prompt = `

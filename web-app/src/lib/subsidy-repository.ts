@@ -1,4 +1,3 @@
-import { createSupabaseAdmin } from "./supabaseAdmin";
 import { fetchBizinfoPrograms } from "./bizinfo";
 import { fetchKStartupPrograms } from "./kstartup";
 import {
@@ -6,12 +5,19 @@ import {
     type SubsidyFormInput,
 } from "./subsidy";
 import {
-    candidateToDbRow,
     dedupeCandidates,
     rowToCandidate,
     type SubsidyProgramCandidate,
     type SubsidyProgramRow,
 } from "./subsidy-program";
+import {
+    getCertificationCost,
+} from "./db/repository";
+import {
+    searchProgramsFromDbD1,
+    upsertProgramsD1,
+} from "./db/subsidy-db";
+import { getDb } from "./cloudflare";
 
 const INTEREST_KEYWORDS: Record<string, string[]> = {
     certification: ["인증", "KC", "품질", "규격", "시험", "해외규격"],
@@ -60,28 +66,20 @@ export async function searchProgramsFromDb(
     input: SubsidyFormInput,
     limit = 50
 ): Promise<SubsidyProgramCandidate[]> {
-    const admin = createSupabaseAdmin();
-    if (!admin) return [];
+    if (!getDb()) return [];
 
-    const { data, error } = await admin
-        .from("subsidy_programs")
-        .select("*")
-        .in("status", ["open", "closing_soon"])
-        .order("synced_at", { ascending: false })
-        .limit(200);
-
-    if (error || !data) {
-        console.warn("DB subsidy search failed:", error?.message);
+    try {
+        const programs = await searchProgramsFromDbD1(200);
+        return programs
+            .map((program) => ({ program, score: scoreProgram(program, input) }))
+            .filter(({ score }) => score > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, limit)
+            .map(({ program }) => program);
+    } catch (error) {
+        console.warn("DB subsidy search failed:", error);
         return [];
     }
-
-    return (data as SubsidyProgramRow[])
-        .map(rowToCandidate)
-        .map((program) => ({ program, score: scoreProgram(program, input) }))
-        .filter(({ score }) => score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, limit)
-        .map(({ program }) => program);
 }
 
 export async function fetchLivePrograms(
@@ -127,43 +125,18 @@ export async function gatherCandidates(
 }
 
 export async function upsertPrograms(programs: SubsidyProgramCandidate[]): Promise<number> {
-    const admin = createSupabaseAdmin();
-    if (!admin || programs.length === 0) return 0;
-
-    const rows = programs.map(candidateToDbRow);
-
-    const { error } = await admin
-        .from("subsidy_programs")
-        .upsert(rows, { onConflict: "source,external_id" });
-
-    if (error) {
-        throw new Error(`Upsert failed: ${error.message}`);
-    }
-
-    return rows.length;
+    if (!getDb() || programs.length === 0) return 0;
+    return upsertProgramsD1(programs);
 }
 
 export async function fetchCertificationCost(
     userId: string | undefined,
     productName: string
 ): Promise<string | null> {
-    if (!userId) return null;
-
-    const admin = createSupabaseAdmin();
-    if (!admin) return null;
-
-    const { data } = await admin
-        .from("diagnostic_results")
-        .select("result_json, product_name")
-        .eq("user_id", userId)
-        .ilike("product_name", productName)
-        .is("tool_type", null)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-    if (!data?.result_json) return null;
-
-    const result = data.result_json as { estimated_cost?: string };
-    return result.estimated_cost || null;
+    if (!userId || !getDb()) return null;
+    try {
+        return await getCertificationCost(userId, productName);
+    } catch {
+        return null;
+    }
 }

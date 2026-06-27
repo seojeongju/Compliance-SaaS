@@ -6,7 +6,8 @@ import {
     Download, Clock, History, Trash2, Lock, Shield, Settings, Globe,
     Scale, AlertTriangle, Printer, Cpu, FileDown, Bookmark, Bell
 } from "lucide-react";
-import { createSupabaseClient } from "../../../lib/supabaseClient";
+import { getSession } from "../../../lib/auth-client";
+import { deleteDiagnosticResult, fetchProfile, listDiagnosticResults, saveDiagnosticResult } from "../../../lib/diagnostic-client";
 import { motion } from "framer-motion";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -236,21 +237,20 @@ export default function DiagnosticPage() {
     }, []);
 
     async function getAuthHeaders(): Promise<Record<string, string>> {
-        const supabase = createSupabaseClient();
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) return {};
-        return { Authorization: `Bearer ${session.access_token}` };
+        const user = await getSession();
+        if (!user) return {};
+        return { "Content-Type": "application/json" };
     }
 
     async function loadSubsidyBookmarks() {
         try {
             const headers = await getAuthHeaders();
-            if (!headers.Authorization) return;
+            if (!headers["Content-Type"]) return;
 
-            const res = await fetch("/api/subsidy/bookmarks", { headers });
+            const res = await fetch("/api/subsidy/bookmarks", { headers, credentials: "include" });
             if (!res.ok) return;
 
-            const data = await res.json();
+            const data = (await res.json()) as { bookmarks?: Array<{ source: string; announcement_id: string }> };
             const keys = new Set<string>(
                 (data.bookmarks || []).map((b: { source: string; announcement_id: string }) => `${b.source}:${b.announcement_id}`)
             );
@@ -263,12 +263,12 @@ export default function DiagnosticPage() {
     async function loadDeadlineAlerts() {
         try {
             const headers = await getAuthHeaders();
-            if (!headers.Authorization) return;
+            if (!headers["Content-Type"]) return;
 
-            const res = await fetch("/api/subsidy/deadline-alerts", { headers });
+            const res = await fetch("/api/subsidy/deadline-alerts", { headers, credentials: "include" });
             if (!res.ok) return;
 
-            const data = await res.json();
+            const data = (await res.json()) as { alerts?: unknown[] };
             setDeadlineAlerts(data.alerts || []);
         } catch (e) {
             console.error("Deadline alerts load error", e);
@@ -286,7 +286,7 @@ export default function DiagnosticPage() {
 
         try {
             const headers = await getAuthHeaders();
-            if (!headers.Authorization) {
+            if (!headers["Content-Type"]) {
                 alert("로그인이 필요합니다.");
                 return;
             }
@@ -294,7 +294,7 @@ export default function DiagnosticPage() {
             if (isBookmarked) {
                 const res = await fetch(
                     `/api/subsidy/bookmarks?announcement_id=${sub.announcement_id}&source=${sub.source}`,
-                    { method: "DELETE", headers }
+                    { method: "DELETE", headers, credentials: "include" }
                 );
                 if (!res.ok) throw new Error("Failed to remove bookmark");
                 setSubsidyBookmarks((prev) => {
@@ -306,6 +306,7 @@ export default function DiagnosticPage() {
                 const res = await fetch("/api/subsidy/bookmarks", {
                     method: "POST",
                     headers: { ...headers, "Content-Type": "application/json" },
+                    credentials: "include",
                     body: JSON.stringify({
                         announcement_id: sub.announcement_id,
                         source: sub.source,
@@ -349,17 +350,9 @@ export default function DiagnosticPage() {
 
     async function fetchAndLoadResult(id: string) {
         try {
-            const supabase = createSupabaseClient();
-            const { data, error } = await (supabase as any)
-                .from('diagnostic_results')
-                .select('*')
-                .eq('id', id)
-                .single();
-
-            if (error) throw error;
-            if (data) {
-                loadHistoryItem(data);
-            }
+            const items = await listDiagnosticResults();
+            const data = items.find((item) => (item as { id: string }).id === id);
+            if (data) loadHistoryItem(data);
         } catch (err) {
             console.error("Failed to load diagnostic from URL:", err);
         }
@@ -367,20 +360,11 @@ export default function DiagnosticPage() {
 
     async function loadUserTier() {
         try {
-            const supabase = createSupabaseClient();
-            const { data: { user } } = await supabase.auth.getUser();
-
-            if (user) {
-                const { data } = await (supabase as any)
-                    .from('profiles')
-                    .select('tier, role')
-                    .eq('id', user.id)
-                    .single();
-
-                if (data) {
-                    setUserTier(data.tier as "free" | "pro");
-                    setUserRole(data.role as "admin" | "user");
-                }
+            const { user, profile } = await fetchProfile();
+            if (user && profile) {
+                const p = profile as { tier?: string; role?: string };
+                setUserTier((p.tier as "free" | "pro") || "free");
+                setUserRole((p.role as "admin" | "user") || "user");
             }
         } catch (e) {
             console.error("Profile load error", e);
@@ -389,17 +373,10 @@ export default function DiagnosticPage() {
 
     async function loadHistory() {
         try {
-            const supabase = createSupabaseClient();
-            const { data: { user } } = await supabase.auth.getUser();
-
+            const user = await getSession();
             if (user) {
-                const { data } = await (supabase as any)
-                    .from('diagnostic_results')
-                    .select('*')
-                    .eq('user_id', user.id)
-                    .order('created_at', { ascending: false })
-                    .limit(6);
-                if (data) setHistory(data);
+                const data = await listDiagnosticResults();
+                setHistory(data.slice(0, 6) as typeof history);
             } else {
                 setHistory([]);
             }
@@ -496,9 +473,7 @@ export default function DiagnosticPage() {
         if (!confirm('정말 이 진단 이력을 삭제하시겠습니까?')) return;
 
         try {
-            const supabase = createSupabaseClient();
-            const { error } = await (supabase as any).from('diagnostic_results').delete().eq('id', id);
-            if (error) throw error;
+            const res = await deleteDiagnosticResult(id); if (!res.ok) throw new Error("Delete failed");
             setHistory(prev => prev.filter(item => item.id !== id));
             if (currentId === id) {
                 setResult(null);
@@ -519,8 +494,7 @@ export default function DiagnosticPage() {
         setError(null);
 
         try {
-            const supabase = createSupabaseClient();
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = await getSession();
 
             const response = await fetch("/api/diagnostic", {
                 method: "POST",
@@ -566,7 +540,7 @@ export default function DiagnosticPage() {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = (await response.json()) as { error?: string };
                 throw new Error(errorData.error || "Failed to generate document");
             }
 
@@ -576,16 +550,15 @@ export default function DiagnosticPage() {
 
             // Save to diagnostic_results for history
             try {
-                const supabase = createSupabaseClient();
-                const { data: { user } } = await supabase.auth.getUser();
+                const user = await getSession();
                 if (user) {
-                    await (supabase as any).from('diagnostic_results').insert({
-                        user_id: user.id,
+                    await saveDiagnosticResult({
+                        userId: user.id,
                         product_name: params.productName,
                         description: `${docType} - AI 생성 초안`,
                         category: params.category,
                         result_json: { ...docData, doc_type: docType, original_params: params },
-                        tool_type: 'smart_doc'
+                        tool_type: "smart_doc",
                     });
                     loadHistory();
                 }
@@ -608,8 +581,7 @@ export default function DiagnosticPage() {
         setError(null);
 
         try {
-            const supabase = createSupabaseClient();
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = await getSession();
 
             const response = await fetch("/api/diagnostic/label", {
                 method: "POST",
@@ -631,31 +603,18 @@ export default function DiagnosticPage() {
 
     const handleSaveLabel = async () => {
         if (!labelResult) return;
-
         try {
-            const supabase = createSupabaseClient();
-            const { data: { user } } = await supabase.auth.getUser();
-
-            if (!user) {
-                alert("로그인이 필요합니다.");
-                return;
-            }
-
-            const { data, error } = await (supabase as any).from('diagnostic_results').insert({
-                user_id: user.id,
+            const user = await getSession();
+            if (!user) { alert("로그인이 필요합니다."); return; }
+            const id = await saveDiagnosticResult({
+                userId: user.id,
                 product_name: labelResult.product_name,
                 description: `${labelResult.model_name} - 표시사항 제작`,
-                category: 'label',
+                category: "label",
                 result_json: labelResult,
-                tool_type: 'label'
-            }).select();
-
-            if (error) throw error;
-
-            if (data && data[0]) {
-                setCurrentId(data[0].id);
-            }
-
+                tool_type: "label",
+            });
+            if (id) setCurrentId(id);
             alert("라벨 도안이 성공적으로 저장되었습니다.");
             loadHistory();
         } catch (e) {
@@ -670,8 +629,7 @@ export default function DiagnosticPage() {
         setError(null);
 
         try {
-            const supabase = createSupabaseClient();
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = await getSession();
 
             const response = await fetch("/api/diagnostic/global", {
                 method: "POST",
@@ -697,8 +655,7 @@ export default function DiagnosticPage() {
         setError(null);
 
         try {
-            const supabase = createSupabaseClient();
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = await getSession();
 
             const response = await fetch("/api/diagnostic/ip-check", {
                 method: "POST",
@@ -720,31 +677,18 @@ export default function DiagnosticPage() {
 
     const handleSaveIpCheck = async () => {
         if (!ipResult) return;
-
         try {
-            const supabase = createSupabaseClient();
-            const { data: { user } } = await supabase.auth.getUser();
-
-            if (!user) {
-                alert("로그인이 필요합니다.");
-                return;
-            }
-
-            const { data, error } = await (supabase as any).from('diagnostic_results').insert({
-                user_id: user.id,
+            const user = await getSession();
+            if (!user) { alert("로그인이 필요합니다."); return; }
+            const id = await saveDiagnosticResult({
+                userId: user.id,
                 product_name: ipFormData.productName,
                 description: ipFormData.description,
                 category: ipFormData.category,
                 result_json: ipResult,
-                tool_type: 'ip_check'
-            }).select();
-
-            if (error) throw error;
-
-            if (data && data[0]) {
-                setCurrentId(data[0].id);
-            }
-
+                tool_type: "ip_check",
+            });
+            if (id) setCurrentId(id);
             alert("지재권 검사 결과가 성공적으로 저장되었습니다.");
             loadHistory();
         } catch (e) {
@@ -755,31 +699,18 @@ export default function DiagnosticPage() {
 
     const handleSaveGlobal = async () => {
         if (!globalResult) return;
-
         try {
-            const supabase = createSupabaseClient();
-            const { data: { user } } = await supabase.auth.getUser();
-
-            if (!user) {
-                alert("로그인이 필요합니다.");
-                return;
-            }
-
-            const { data, error } = await (supabase as any).from('diagnostic_results').insert({
-                user_id: user.id,
+            const user = await getSession();
+            if (!user) { alert("로그인이 필요합니다."); return; }
+            const id = await saveDiagnosticResult({
+                userId: user.id,
                 product_name: globalFormData.productName,
                 description: `${globalResult.target_country} 수출 로드맵 - ${globalFormData.category}`,
                 category: globalFormData.category,
                 result_json: globalResult,
-                tool_type: 'global'
-            }).select();
-
-            if (error) throw error;
-
-            if (data && data[0]) {
-                setCurrentId(data[0].id);
-            }
-
+                tool_type: "global",
+            });
+            if (id) setCurrentId(id);
             alert("수출 로드맵이 성공적으로 저장되었습니다.");
             loadHistory();
         } catch (e) {
@@ -794,8 +725,7 @@ export default function DiagnosticPage() {
         setError(null);
 
         try {
-            const supabase = createSupabaseClient();
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = await getSession();
 
             const response = await fetch("/api/diagnostic/subsidy", {
                 method: "POST",
@@ -817,18 +747,11 @@ export default function DiagnosticPage() {
 
     const handleSaveSubsidy = async () => {
         if (!subsidyResult) return;
-
         try {
-            const supabase = createSupabaseClient();
-            const { data: { user } } = await supabase.auth.getUser();
-
-            if (!user) {
-                alert("로그인이 필요합니다.");
-                return;
-            }
-
-            const { data, error } = await (supabase as any).from('diagnostic_results').insert({
-                user_id: user.id,
+            const user = await getSession();
+            if (!user) { alert("로그인이 필요합니다."); return; }
+            const id = await saveDiagnosticResult({
+                userId: user.id,
                 product_name: subsidyFormData.productName,
                 description: `정부지원사업 매칭 - ${subsidyFormData.interestArea}`,
                 category: subsidyFormData.category,
@@ -836,17 +759,11 @@ export default function DiagnosticPage() {
                     ...subsidyResult,
                     company_stage: subsidyFormData.companyStage,
                     location: subsidyFormData.location,
-                    interest_area: subsidyFormData.interestArea
+                    interest_area: subsidyFormData.interestArea,
                 },
-                tool_type: 'subsidy'
-            }).select();
-
-            if (error) throw error;
-
-            if (data && data[0]) {
-                setCurrentId(data[0].id);
-            }
-
+                tool_type: "subsidy",
+            });
+            if (id) setCurrentId(id);
             alert("지원사업 매칭 결과가 성공적으로 저장되었습니다.");
             loadHistory();
         } catch (e) {
@@ -881,33 +798,25 @@ export default function DiagnosticPage() {
 
     const handleSaveRisk = async () => {
         if (!riskResult) return;
-
         try {
-            const supabase = createSupabaseClient();
-            const { data: { user } } = await supabase.auth.getUser();
-
-            if (!user) {
-                alert("로그인이 필요합니다.");
-                return;
-            }
-
-            const { data, error } = await (supabase as any).from('diagnostic_results').insert({
-                user_id: user.id,
+            const user = await getSession();
+            if (!user) { alert("로그인이 필요합니다."); return; }
+            const id = await saveDiagnosticResult({
+                userId: user.id,
                 product_name: riskFormData.productName,
-                description: `ISO 위험성 평가 - ${riskFormData.category}`,
+                description: riskFormData.mainMaterials,
                 category: riskFormData.category,
                 result_json: {
                     ...riskResult,
                     usage_env: riskFormData.usageEnvironment,
                     target_user: riskFormData.targetUser,
                     materials: riskFormData.mainMaterials,
-                    power: riskFormData.powerSource
+                    power: riskFormData.powerSource,
                 },
-                tool_type: 'risk'
-            }).select();
-
-            if (error) throw error;
-            alert("위험성 평가 결과가 저장되었습니다.");
+                tool_type: "risk",
+            });
+            if (id) setCurrentId(id);
+            alert("위험성 평가 결과가 성공적으로 저장되었습니다.");
             loadHistory();
         } catch (e) {
             console.error(e);
@@ -919,30 +828,23 @@ export default function DiagnosticPage() {
         if (!result) return;
 
         try {
-            const supabase = createSupabaseClient();
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = await getSession();
 
             if (!user) {
                 alert("로그인이 필요합니다.");
                 return;
             }
 
-            // Always insert new record to maintain history/snapshots
-            const { data, error } = await (supabase as any).from('diagnostic_results').insert({
-                user_id: user.id,
+            const id = await saveDiagnosticResult({
+                userId: user.id,
                 product_name: formData.productName,
                 description: formData.description,
                 category: formData.category,
                 result_json: result,
-                tool_type: 'general'
-            }).select();
+                tool_type: "general",
+            });
 
-            if (error) throw error;
-
-            // If we want the UI to track the "new" current ID after saving
-            if (data && data[0]) {
-                setCurrentId(data[0].id);
-            }
+            if (id) setCurrentId(id);
 
             alert("진단 결과가 성공적으로 저장되었습니다. (히스토리에 새 기록이 추가되었습니다)");
             loadHistory(); // Refresh history

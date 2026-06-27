@@ -2,7 +2,9 @@ import { OpenAI } from "openai";
 import { z } from "zod";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { NextResponse } from "next/server";
-import { createSupabaseClient } from "../../../lib/supabaseClient";
+import { getDb } from "@/lib/cloudflare";
+import { getUserFromRequest } from "@/lib/auth";
+import { insertDiagnostic } from "@/lib/db/repository";
 
 export const runtime = "edge";
 
@@ -34,10 +36,15 @@ export async function POST(req: Request) {
     });
 
     try {
-        const body = await req.json();
+        const body = (await req.json()) as {
+            productName?: string;
+            category?: string;
+            description?: string;
+            userId?: string;
+        };
         const { productName, category, description } = body;
 
-        if (!productName || !description) {
+        if (!productName || !description || !category) {
             return NextResponse.json(
                 { error: "Product name and description are required" },
                 { status: 400 }
@@ -71,23 +78,20 @@ export async function POST(req: Request) {
 
         const result = completion.choices[0].message.parsed;
 
-        // Save result to Supabase
-        const supabase = createSupabaseClient();
-        const { error: dbError } = await (supabase as any)
-            .from('diagnostic_results')
-            .insert([
-                {
-                    product_name: productName,
-                    category: category,
-                    description: description,
-                    user_id: body.userId || null, // Save userId if provided
-                    result_json: result,
-                }
-            ]);
-
-        if (dbError) {
-            console.error("Supabase Save Error:", dbError);
-            // We don't fail the request, just log the error
+        const db = getDb();
+        if (db) {
+            const user = await getUserFromRequest(req, db);
+            try {
+                await insertDiagnostic({
+                    productName,
+                    category,
+                    description,
+                    resultJson: result,
+                    userId: user?.id ?? body.userId ?? null,
+                });
+            } catch (dbError) {
+                console.error("D1 Save Error:", dbError);
+            }
         }
 
         return NextResponse.json(result);

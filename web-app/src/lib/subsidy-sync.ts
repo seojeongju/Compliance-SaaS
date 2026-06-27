@@ -1,10 +1,10 @@
 import { fetchBizinfoPrograms } from "./bizinfo";
 import { fetchKStartupPrograms } from "./kstartup";
-import { createSupabaseAdmin } from "./supabaseAdmin";
 import {
     type SubsidyProgramCandidate,
 } from "./subsidy-program";
-import { upsertPrograms } from "./subsidy-repository";
+import { upsertProgramsD1, insertSyncLog } from "./db/subsidy-db";
+import { getDb } from "./cloudflare";
 
 export interface SyncResult {
     bizinfo: { synced: number; error?: string };
@@ -13,7 +13,6 @@ export interface SyncResult {
 }
 
 async function syncSource(
-    source: "bizinfo" | "kstartup",
     fetcher: () => Promise<{ programs: SubsidyProgramCandidate[]; error?: string }>
 ): Promise<{ synced: number; error?: string; programs: SubsidyProgramCandidate[] }> {
     const { programs, error } = await fetcher();
@@ -23,7 +22,7 @@ async function syncSource(
     }
 
     try {
-        const synced = await upsertPrograms(programs);
+        const synced = await upsertProgramsD1(programs);
         return { synced, error, programs };
     } catch (err) {
         const message = err instanceof Error ? err.message : "Upsert failed";
@@ -32,22 +31,19 @@ async function syncSource(
 }
 
 export async function syncAllSubsidyPrograms(): Promise<SyncResult> {
-    const admin = createSupabaseAdmin();
-
-    const bizinfoResult = await syncSource("bizinfo", () =>
+    const bizinfoResult = await syncSource(() =>
         fetchBizinfoPrograms({ searchCount: 100 })
     );
 
-    const kstartupResult = await syncSource("kstartup", () =>
+    const kstartupResult = await syncSource(() =>
         fetchKStartupPrograms(1, 100)
     );
 
-    if (admin) {
-        await admin.from("subsidy_sync_logs").insert({
+    if (getDb()) {
+        await insertSyncLog({
             source: "all",
-            synced_count: bizinfoResult.synced + kstartupResult.synced,
-            error_message: [bizinfoResult.error, kstartupResult.error].filter(Boolean).join("; ") || null,
-            finished_at: new Date().toISOString(),
+            syncedCount: bizinfoResult.synced + kstartupResult.synced,
+            errorMessage: [bizinfoResult.error, kstartupResult.error].filter(Boolean).join("; ") || null,
         });
     }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createSupabaseClient } from "@/lib/supabaseClient";
+import { getSession, apiFetch } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import {
     Users, Activity, DollarSign, Settings, Search, CheckCircle,
@@ -50,24 +50,16 @@ export default function AdminDashboard() {
 
     const checkAdminAccess = async () => {
         try {
-            const supabase = createSupabaseClient();
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = await getSession();
 
             if (!user) {
-                router.push("/dashboard/login");
+                router.push("/login");
                 return;
             }
 
-            // Check if user is admin
-            const { data: profile } = await (supabase as any)
-                .from("profiles")
-                .select("role")
-                .eq("id", user.id)
-                .single();
-
-            if (error || profile?.role !== "admin") {
+            if (user.role !== "admin") {
                 setError("관리자 권한이 필요합니다.");
-                if (process.env.NODE_ENV === 'production') {
+                if (process.env.NODE_ENV === "production") {
                     router.push("/dashboard");
                     return;
                 }
@@ -76,7 +68,6 @@ export default function AdminDashboard() {
             setCurrentUser(user);
             fetchDashboardData();
             fetchLogs(1);
-
         } catch (err) {
             console.error("Admin check error:", err);
             setError("관리자 확인 중 오류가 발생했습니다.");
@@ -85,22 +76,12 @@ export default function AdminDashboard() {
 
     const fetchLogs = async (page: number) => {
         try {
-            const supabase = createSupabaseClient();
-            const from = (page - 1) * ITEMS_PER_PAGE;
-            const to = from + ITEMS_PER_PAGE - 1;
-
-            const { data: logsData, count, error: logsError } = await (supabase as any)
-                .from("diagnostic_results")
-                .select("id, product_name, created_at, user_id", { count: 'exact' })
-                .order("created_at", { ascending: false })
-                .range(from, to);
-
-            if (logsError) throw logsError;
-
-            setLogs(logsData as unknown as DiagnosticLog[] || []);
-            if (count !== null) setTotalLogsCount(count);
+            const res = await apiFetch(`/api/admin?resource=logs&page=${page}`);
+            if (!res.ok) throw new Error("Failed to fetch logs");
+            const data = (await res.json()) as { logs?: DiagnosticLog[]; total?: number };
+            setLogs(data.logs || []);
+            setTotalLogsCount(data.total || 0);
             setCurrentPage(page);
-
         } catch (err) {
             console.error("Logs fetch error:", err);
         }
@@ -109,40 +90,30 @@ export default function AdminDashboard() {
     const fetchDashboardData = async () => {
         setLoading(true);
         try {
-            const supabase = createSupabaseClient();
+            const [usersRes, statsRes] = await Promise.all([
+                apiFetch("/api/admin?resource=users"),
+                apiFetch("/api/admin?resource=stats"),
+            ]);
 
-            // 1. Fetch Users
-            const { data: usersData, error: usersError } = await supabase
-                .from("profiles")
-                .select("*")
-                .order("created_at", { ascending: false })
-                .limit(50);
+            if (!usersRes.ok) throw new Error("Failed to fetch users");
+            const usersData = (await usersRes.json()) as { users?: UserProfile[] };
+            const statsData = statsRes.ok
+                ? ((await statsRes.json()) as {
+                      totalUsers?: number;
+                      activeToday?: number;
+                      proUsers?: number;
+                      totalDiagnostics?: number;
+                  })
+                : {};
 
-            if (usersError) throw usersError;
-
-            // 2. Fetch Diagnostics Count (Separate from logs list)
-            const { count: diagnosticCount } = await (supabase as any)
-                .from("diagnostic_results")
-                .select("*", { count: 'exact', head: true });
-
-
-            setUsers(usersData as UserProfile[] || []);
-
-            // 3. Calculate Stats
-            const totalUsers = usersData?.length || 0;
-            const proUsers = usersData?.filter((u: any) => u.tier === 'pro').length || 0;
-
-            // Mocking 'activeToday' for now
-            const activeToday = Math.floor(Math.random() * 5) + 1;
-
+            setUsers(usersData.users || []);
             setStats({
-                totalUsers,
-                activeToday,
-                proUsers,
-                totalDiagnostics: diagnosticCount || 0,
+                totalUsers: statsData.totalUsers || usersData.users?.length || 0,
+                activeToday: statsData.activeToday || 0,
+                proUsers: statsData.proUsers || 0,
+                totalDiagnostics: statsData.totalDiagnostics || 0,
             });
-
-        } catch (err: any) {
+        } catch (err) {
             console.error("Dashboard data load error:", err);
         } finally {
             setLoading(false);
@@ -150,20 +121,16 @@ export default function AdminDashboard() {
     };
 
     const toggleUserTier = async (userId: string, currentTier: string) => {
-        const newTier = currentTier === 'free' ? 'pro' : 'free';
+        const newTier = currentTier === "free" ? "pro" : "free";
         if (!confirm(`사용자 등급을 ${newTier.toUpperCase()}로 변경하시겠습니까?`)) return;
 
         try {
-            const supabase = createSupabaseClient();
-            const { error } = await (supabase as any)
-                .from("profiles")
-                .update({ tier: newTier })
-                .eq("id", userId);
-
-            if (error) throw error;
-
-            // Update local state
-            setUsers(users.map(u => u.id === userId ? { ...u, tier: newTier } : u));
+            const res = await apiFetch("/api/admin", {
+                method: "PATCH",
+                body: JSON.stringify({ userId, tier: newTier }),
+            });
+            if (!res.ok) throw new Error("Update failed");
+            setUsers(users.map((u) => (u.id === userId ? { ...u, tier: newTier as "free" | "pro" } : u)));
             alert("사용자 등급이 변경되었습니다.");
         } catch (err) {
             console.error("Update error:", err);
@@ -172,9 +139,8 @@ export default function AdminDashboard() {
     };
 
     const updateUserRole = async (userId: string, currentRole: string) => {
-        const newRole = currentRole === 'admin' ? 'user' : 'admin';
+        const newRole = currentRole === "admin" ? "user" : "admin";
 
-        // Prevent changing own role for safety
         if (currentUser?.id === userId) {
             alert("자신의 관리자 권한은 스스로 해제할 수 없습니다.");
             return;
@@ -183,16 +149,12 @@ export default function AdminDashboard() {
         if (!confirm(`사용자 권한을 ${newRole.toUpperCase()}로 변경하시겠습니까?`)) return;
 
         try {
-            const supabase = createSupabaseClient();
-            const { error } = await (supabase as any)
-                .from("profiles")
-                .update({ role: newRole })
-                .eq("id", userId);
-
-            if (error) throw error;
-
-            // Update local state
-            setUsers(users.map(u => u.id === userId ? { ...u, role: newRole as "admin" | "user" } : u));
+            const res = await apiFetch("/api/admin", {
+                method: "PATCH",
+                body: JSON.stringify({ userId, role: newRole }),
+            });
+            if (!res.ok) throw new Error("Update failed");
+            setUsers(users.map((u) => (u.id === userId ? { ...u, role: newRole as "admin" | "user" } : u)));
             alert("사용자 권한이 변경되었습니다.");
         } catch (err) {
             console.error("Update error:", err);
@@ -225,7 +187,7 @@ export default function AdminDashboard() {
                         대시보드로 돌아가기
                     </button>
                     <div className="mt-4 text-xs text-zinc-400 bg-zinc-100 p-2 rounded">
-                        * 개발 환경 팁: Supabase에 'profiles' 테이블을 생성하고 자신의 계정에 role='admin'을 설정하세요.
+                        * 개발 환경 팁: D1 `profiles` 테이블에서 자신의 계정에 role='admin'을 설정하세요.
                     </div>
                 </div>
             </div>

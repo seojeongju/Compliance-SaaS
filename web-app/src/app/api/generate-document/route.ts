@@ -2,14 +2,15 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { OpenAI } from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
-import { createSupabaseClient } from "../../../lib/supabaseClient";
+import { getDb } from "@/lib/cloudflare";
+import { getUserFromRequest } from "@/lib/auth";
+import { insertDocument } from "@/lib/db/repository";
 
 export const runtime = "edge";
 
-// Define the response schema using Zod
 const DocumentSchema = z.object({
     title: z.string(),
-    content: z.string(), // Markdown or HTML content for the document
+    content: z.string(),
     sections: z.array(
         z.object({
             heading: z.string(),
@@ -24,7 +25,13 @@ export async function POST(req: Request) {
     });
 
     try {
-        const { productName, category, description, documentType, diagnosticId } = await req.json();
+        const { productName, category, description, documentType, diagnosticId } = (await req.json()) as {
+            productName?: string;
+            category?: string;
+            description?: string;
+            documentType?: string;
+            diagnosticId?: string;
+        };
 
         if (!productName || !category || !description || !documentType) {
             return NextResponse.json(
@@ -32,13 +39,6 @@ export async function POST(req: Request) {
                 { status: 400 }
             );
         }
-
-        const supabase = createSupabaseClient();
-
-        // Get user session to save correctly
-        // Note: In Edge runtime, auth.getUser() works if headers/cookies are passed, 
-        // but since we call it from the same origin, it should work.
-        const { data: { user } } = await supabase.auth.getUser();
 
         const prompt = `
     당신은 대한민국 하드웨어 스타트업 및 중소기업을 위한 규제 준수 및 행정 서류 전문 컨설턴트입니다.
@@ -83,26 +83,24 @@ export async function POST(req: Request) {
         const parsedData = completion.choices[0].message.parsed;
         if (!parsedData) throw new Error("문서 생성 실패");
 
-        // Save result to Supabase
-        const { error: dbError } = await (supabase as any)
-            .from('documents')
-            .insert([
-                {
-                    user_id: user?.id || null, // Associate with user if logged in
-                    diagnostic_id: diagnosticId || null, // Link to diagnostic if provided
+        const db = getDb();
+        if (db) {
+            const user = await getUserFromRequest(req, db);
+            try {
+                await insertDocument({
+                    userId: user?.id ?? null,
+                    diagnosticId: diagnosticId || null,
                     title: parsedData.title,
-                    doc_type: documentType,
+                    docType: documentType,
                     content: parsedData.content,
-                    status: 'draft',
-                }
-            ]);
-
-        if (dbError) {
-            console.error("Supabase Save Error:", dbError);
+                    status: "draft",
+                });
+            } catch (dbError) {
+                console.error("Document save error:", dbError);
+            }
         }
 
         return NextResponse.json(parsedData);
-
     } catch (error) {
         console.error("Error generating document:", error);
         return NextResponse.json(

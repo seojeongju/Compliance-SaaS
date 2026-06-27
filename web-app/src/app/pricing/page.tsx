@@ -14,7 +14,7 @@ import {
     Loader2
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { createSupabaseClient } from "../../lib/supabaseClient";
+import { getSession } from "../../lib/auth-client";
 
 export default function PricingPage() {
     const [user, setUser] = useState<any>(null);
@@ -28,8 +28,7 @@ export default function PricingPage() {
 
     const checkUser = async () => {
         try {
-            const supabase = createSupabaseClient();
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = await getSession();
             setUser(user);
         } catch (error) {
             console.error("Error checking user:", error);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createSupabaseClient } from "../../lib/supabaseClient";
+import { signIn, signUp, forgotPassword } from "../../lib/auth-client";
 import { useRouter } from "next/navigation";
 import { Lock, Mail, Loader2, AlertCircle, ShieldCheck, Check, ArrowRight, Github } from "lucide-react";
 import Link from "next/link";
@@ -22,36 +22,23 @@ export default function LoginPage() {
         setError(null);
         setMessage(null);
 
-        const supabase = createSupabaseClient();
-
         try {
             if (mode === "signup") {
-                const { error } = await supabase.auth.signUp({
-                    email,
-                    password,
-                    options: {
-                        emailRedirectTo: `${window.location.origin}/auth/callback`,
-                    }
-                });
-                if (error) throw error;
-                setMessage("가입 확인 이메일이 발송되었습니다. 이메일을 확인해주세요.");
+                const result = await signUp(email, password);
+                if (result.error) throw new Error(result.error);
+                setMessage(result.message || "가입 확인 이메일이 발송되었습니다. 이메일을 확인해주세요.");
             } else if (mode === "signin") {
-                const { error } = await supabase.auth.signInWithPassword({
-                    email,
-                    password,
-                });
-                if (error) throw error;
+                const result = await signIn(email, password);
+                if (result.error) throw new Error(result.error);
                 router.push("/dashboard");
             } else if (mode === "forgot") {
-                const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                    redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
-                });
-                if (error) throw error;
-                setMessage("비밀번호 재설정 링크가 이메일로 전송되었습니다. 이메일을 확인해주세요.");
+                const result = await forgotPassword(email);
+                if (result.error) throw new Error(result.error);
+                setMessage(result.message || "비밀번호 재설정 링크가 이메일로 전송되었습니다. 이메일을 확인해주세요.");
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Auth Error:", error);
-            setError(error.message || "오류가 발생했습니다. 다시 시도해주세요.");
+            setError(error instanceof Error ? error.message : "오류가 발생했습니다. 다시 시도해주세요.");
         } finally {
             setLoading(false);
         }

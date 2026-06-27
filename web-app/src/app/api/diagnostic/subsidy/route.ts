@@ -212,18 +212,25 @@ export async function POST(req: Request) {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     try {
-        const body = await req.json();
-        const input: SubsidyFormInput = {
-            productName: body.productName,
-            category: body.category,
-            companyStage: body.companyStage,
-            location: body.location,
-            interestArea: body.interestArea,
+        const body = (await req.json()) as {
+            productName?: string;
+            category?: string;
+            companyStage?: string;
+            location?: string;
+            interestArea?: string;
+            userId?: string;
         };
-
-        if (!input.productName?.trim()) {
+        if (!body.productName?.trim()) {
             return NextResponse.json({ error: "제품명/사업명은 필수입니다." }, { status: 400 });
         }
+
+        const input: SubsidyFormInput = {
+            productName: body.productName,
+            category: body.category || "",
+            companyStage: body.companyStage as SubsidyFormInput["companyStage"],
+            location: body.location as SubsidyFormInput["location"],
+            interestArea: body.interestArea as SubsidyFormInput["interestArea"],
+        };
 
         const certificationCost = await fetchCertificationCost(body.userId, input.productName);
 

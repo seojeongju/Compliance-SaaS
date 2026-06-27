@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { BarChart, FileText, Home, Settings, ShieldCheck, LogOut, LogIn, User } from "lucide-react";
 import { useEffect, useState } from "react";
-import { createSupabaseClient } from "../../lib/supabaseClient";
+import { getSession, signOut } from "../../lib/auth-client";
 import { useRouter, usePathname } from "next/navigation";
 
 export default function DashboardLayout({
@@ -22,21 +22,10 @@ export default function DashboardLayout({
     }, []);
 
     const checkUser = async () => {
-        const supabase = createSupabaseClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getSession();
         if (user) {
             setUserEmail(user.email || "User");
-
-            // Fetch Role
-            const { data } = await (supabase as any)
-                .from('profiles')
-                .select('role')
-                .eq('id', user.id)
-                .single();
-
-            if (data) {
-                setUserRole(data.role as "admin" | "user");
-            }
+            setUserRole(user.role);
         } else {
             setUserEmail(null);
             setUserRole(null);
@@ -45,8 +34,7 @@ export default function DashboardLayout({
     };
 
     const handleLogout = async () => {
-        const supabase = createSupabaseClient();
-        await supabase.auth.signOut();
+        await signOut();
         setUserEmail(null);
         setUserRole(null);
         router.refresh();

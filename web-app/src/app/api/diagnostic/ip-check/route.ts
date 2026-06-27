@@ -28,7 +28,12 @@ export async function POST(req: Request) {
     });
 
     try {
-        const body = await req.json();
+        const body = (await req.json()) as {
+            productName?: string;
+            category?: string;
+            description?: string;
+            userId?: string;
+        };
         const { productName, category, description, userId } = body;
 
         if (!productName || !category) {

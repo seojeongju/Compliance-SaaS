@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createSupabaseClient } from "../../../lib/supabaseClient";
+import { apiFetch } from "../../../lib/auth-client";
+import { deleteDiagnosticResult, listDiagnosticResults } from "../../../lib/diagnostic-client";
 import { useRouter } from "next/navigation";
 import { FileText, Download, Copy, X, Loader2, Calendar, FileType, Zap, CheckCircle, ChevronRight, AlertCircle, Trash2, RefreshCw, Building2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -52,23 +53,14 @@ export default function DocumentsPage() {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const supabase = createSupabaseClient();
+            const diagRes = await listDiagnosticResults();
+            const diagnostics = diagRes as DiagnosticResultItem[];
 
-            // 1. Fetch Diagnostic Results First (to use as grouping labels)
-            const { data: diagnostics, error: diagError } = await (supabase as any)
-                .from("diagnostic_results")
-                .select("*")
-                .order("created_at", { ascending: false });
-
-            if (diagError) console.error("Error fetching diagnostics:", diagError);
-
-            // 2. Fetch Generated Documents
-            const { data: documents, error: docError } = await (supabase as any)
-                .from("documents")
-                .select("*")
-                .order("created_at", { ascending: false });
-
-            if (docError) console.error("Error fetching documents:", docError);
+            const docRes = await apiFetch("/api/documents");
+            const docData = docRes.ok
+                ? ((await docRes.json()) as { documents?: GeneratedDocument[] })
+                : { documents: [] as GeneratedDocument[] };
+            const documents = docData.documents || [];
 
             // 3. Create Lookup for Diagnostics
             const diagMap = new Map<string, string>();
@@ -192,15 +184,13 @@ export default function DocumentsPage() {
 
         try {
             setIsDeleting(true);
-            const supabase = createSupabaseClient();
-            const table = selectedItem.type === 'document' ? 'documents' : 'diagnostic_results';
-
-            const { error } = await (supabase as any)
-                .from(table)
-                .delete()
-                .eq('id', selectedItem.id);
-
-            if (error) throw error;
+            if (selectedItem.type === 'document') {
+                const res = await apiFetch(`/api/documents?id=${encodeURIComponent(selectedItem.id)}`, { method: "DELETE" });
+                if (!res.ok) throw new Error("Delete failed");
+            } else {
+                const res = await deleteDiagnosticResult(selectedItem.id);
+                if (!res.ok) throw new Error("Delete failed");
+            }
 
             // Remove from local state
             if (selectedGroup) {
