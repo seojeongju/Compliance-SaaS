@@ -23,9 +23,16 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "이메일 또는 비밀번호가 올바르지 않습니다." }, { status: 401 });
         }
 
+        if (user.email_verified !== 1) {
+            await db
+                .prepare("UPDATE users SET email_verified = 1 WHERE id = ?")
+                .bind(user.id)
+                .run();
+        }
+
         const session = await createSession(db, user.id);
         const response = NextResponse.json({
-            user: { id: user.id, email: email.toLowerCase(), emailVerified: user.email_verified === 1 },
+            user: { id: user.id, email: email.toLowerCase(), emailVerified: true },
         });
         response.headers.set("Set-Cookie", buildSessionCookie(session.token, session.expiresAt));
         return response;

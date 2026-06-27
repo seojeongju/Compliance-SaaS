@@ -7,6 +7,13 @@ interface SendEmailOptions {
     text: string;
 }
 
+/** Cloudflare Email binding 또는 REST API가 설정된 경우에만 true */
+export function isEmailDeliveryConfigured(): boolean {
+    const env = getEnv();
+    if (env?.EMAIL) return true;
+    return Boolean(process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN);
+}
+
 export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
     const env = getEnv();
     const fromEmail = env?.EMAIL_FROM || process.env.EMAIL_FROM || "noreply@example.com";
@@ -70,6 +77,16 @@ export function appUrl(path: string): string {
         process.env.NEXT_PUBLIC_APP_URL ||
         "http://localhost:3000";
     return `${base.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+export async function sendWelcomeEmail(to: string): Promise<boolean> {
+    const link = appUrl("/dashboard");
+    return sendEmail({
+        to,
+        subject: "[Certi-Mate] 가입을 환영합니다",
+        text: `Certi-Mate 가입을 환영합니다. 바로 서비스를 이용하실 수 있습니다.\n\n${link}`,
+        html: `<p>Certi-Mate 가입을 환영합니다.</p><p><a href="${link}">대시보드로 이동</a></p>`,
+    });
 }
 
 export async function sendVerificationEmail(to: string, token: string): Promise<boolean> {

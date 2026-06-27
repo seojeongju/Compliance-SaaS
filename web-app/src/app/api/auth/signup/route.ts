@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireDb } from "@/lib/cloudflare";
 import { hashPassword } from "@/lib/password";
-import { createAuthToken } from "@/lib/auth";
-import { sendVerificationEmail } from "@/lib/email";
+import { buildSessionCookie, createSession } from "@/lib/auth";
+import { isEmailDeliveryConfigured, sendWelcomeEmail } from "@/lib/email";
 
 export const runtime = "edge";
 
@@ -17,10 +17,11 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "비밀번호는 6자 이상이어야 합니다." }, { status: 400 });
         }
 
+        const normalizedEmail = email.toLowerCase();
         const db = requireDb();
         const existing = await db
             .prepare("SELECT id FROM users WHERE email = ?")
-            .bind(email.toLowerCase())
+            .bind(normalizedEmail)
             .first();
 
         if (existing) {
@@ -33,22 +34,30 @@ export async function POST(req: Request) {
         await db.batch([
             db
                 .prepare(
-                    "INSERT INTO users (id, email, password_hash, email_verified) VALUES (?, ?, ?, 0)"
+                    "INSERT INTO users (id, email, password_hash, email_verified) VALUES (?, ?, ?, 1)"
                 )
-                .bind(userId, email.toLowerCase(), passwordHash),
+                .bind(userId, normalizedEmail, passwordHash),
             db
                 .prepare(
                     "INSERT INTO profiles (id, email, role, tier) VALUES (?, ?, 'user', 'free')"
                 )
-                .bind(userId, email.toLowerCase()),
+                .bind(userId, normalizedEmail),
         ]);
 
-        const verifyToken = await createAuthToken(db, userId, "email_verify", 48);
-        await sendVerificationEmail(email, verifyToken);
+        const session = await createSession(db, userId);
 
-        return NextResponse.json({
-            message: "가입 확인 이메일이 발송되었습니다. 이메일을 확인해주세요.",
+        if (isEmailDeliveryConfigured()) {
+            void sendWelcomeEmail(normalizedEmail).catch((error) => {
+                console.error("Welcome email failed:", error);
+            });
+        }
+
+        const response = NextResponse.json({
+            user: { id: userId, email: normalizedEmail, emailVerified: true },
+            message: "회원가입이 완료되었습니다.",
         });
+        response.headers.set("Set-Cookie", buildSessionCookie(session.token, session.expiresAt));
+        return response;
     } catch (error) {
         console.error("Signup error:", error);
         return NextResponse.json({ error: "회원가입 중 오류가 발생했습니다." }, { status: 500 });

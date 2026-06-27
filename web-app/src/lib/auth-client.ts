@@ -28,14 +28,17 @@ export async function getSession(): Promise<SessionUser | null> {
     return data.user;
 }
 
-export async function signUp(email: string, password: string): Promise<{ error?: string; message?: string }> {
+export async function signUp(
+    email: string,
+    password: string
+): Promise<{ error?: string; message?: string; user?: SessionUser }> {
     const res = await authFetch("/api/auth/signup", {
         method: "POST",
         body: JSON.stringify({ email, password }),
     });
-    const data = (await res.json()) as ApiMessage;
+    const data = (await res.json()) as ApiMessage & { user?: SessionUser };
     if (!res.ok) return { error: data.error || "회원가입에 실패했습니다." };
-    return { message: data.message };
+    return { message: data.message, user: data.user };
 }
 
 export async function signIn(email: string, password: string): Promise<{ error?: string }> {

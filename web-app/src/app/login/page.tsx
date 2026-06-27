@@ -26,7 +26,11 @@ export default function LoginPage() {
             if (mode === "signup") {
                 const result = await signUp(email, password);
                 if (result.error) throw new Error(result.error);
-                setMessage(result.message || "가입 확인 이메일이 발송되었습니다. 이메일을 확인해주세요.");
+                if (result.user) {
+                    router.push("/dashboard");
+                    return;
+                }
+                setMessage(result.message || "회원가입이 완료되었습니다.");
             } else if (mode === "signin") {
                 const result = await signIn(email, password);
                 if (result.error) throw new Error(result.error);
