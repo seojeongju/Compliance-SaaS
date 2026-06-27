@@ -4,6 +4,7 @@
  */
 
 import type { SubsidyProgramCandidate } from "./subsidy-program";
+import { getEnv } from "./cloudflare";
 
 const BIZINFO_API_URL = "https://www.bizinfo.go.kr/uss/rss/bizinfoApi.do";
 
@@ -142,7 +143,7 @@ function extractItems(data: unknown): BizinfoRawItem[] {
 export async function fetchBizinfoPrograms(
     params: BizinfoSearchParams = {}
 ): Promise<{ programs: SubsidyProgramCandidate[]; error?: string }> {
-    const apiKey = process.env.BIZINFO_API_KEY;
+    const apiKey = getEnv()?.BIZINFO_API_KEY ?? process.env.BIZINFO_API_KEY;
 
     if (!apiKey) {
         return { programs: [], error: "BIZINFO_API_KEY not configured" };
